@@ -1,1 +1,32 @@
+# IDEs
 /.idea/
+/.vscode/
+*.iml
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Environment variables
+.env
+!.env.example
+
+# Java / Maven (core/)
+target/
+*.class
+
+# Node / Vite (frontend/)
+node_modules/
+dist/
+.npm/
+
+# Python (ai-service/)
+__pycache__/
+*.py[cod]
+*$py.class
+.venv/
+venv/
+.pytest_cache/
+
+# Local uploads
+/data/uploads/
