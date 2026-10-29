@@ -1,0 +1,18 @@
+[project]
+name = "tournado-ai-service"
+version = "0.1.0"
+description = "Tournado Multimodal AI & OCR Arbitration Service"
+requires-python = ">=3.12"
+dependencies = [
+    "fastapi>=0.115.0",
+    "uvicorn[standard]>=0.30.0",
+    "python-multipart>=0.0.9",
+    "pydantic>=2.9.0",
+    "pillow>=10.4.0"
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.3.0",
+    "httpx>=0.27.0"
+]

@@ -1,0 +1,76 @@
+services:
+  db:
+    image: postgres:16-alpine
+    container_name: tournado-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-tournado}
+      POSTGRES_USER: ${POSTGRES_USER:-tournado_user}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-tournado_pass}
+    ports:
+      - "${POSTGRES_PORT:-5432}:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-tournado_user} -d ${POSTGRES_DB:-tournado}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  mail:
+    image: axllent/mailpit:latest
+    container_name: tournado-mail
+    restart: unless-stopped
+    ports:
+      - "${MAILPIT_UI_PORT:-8025}:8025"
+      - "${MAILPIT_SMTP_PORT:-1025}:1025"
+
+  ai-service:
+    build:
+      context: ./ai-service
+      dockerfile: Dockerfile
+    container_name: tournado-ai
+    restart: unless-stopped
+    environment:
+      AI_PROVIDER: ${AI_PROVIDER:-mock}
+      GEMINI_API_KEY: ${GEMINI_API_KEY:-}
+    ports:
+      - "${AI_SERVICE_PORT:-8000}:8000"
+
+  core:
+    build:
+      context: ./core
+      dockerfile: Dockerfile
+    container_name: tournado-core
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+      ai-service:
+        condition: service_started
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:postgresql://db:5432/${POSTGRES_DB:-tournado}
+      SPRING_DATASOURCE_USERNAME: ${POSTGRES_USER:-tournado_user}
+      SPRING_DATASOURCE_PASSWORD: ${POSTGRES_PASSWORD:-tournado_pass}
+      AI_SERVICE_URL: http://ai-service:8000
+      SPRING_MAIL_HOST: mail
+      SPRING_MAIL_PORT: 1025
+    ports:
+      - "${CORE_PORT:-8080}:8080"
+    volumes:
+      - uploads_data:/data/uploads
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: tournado-frontend
+    restart: unless-stopped
+    depends_on:
+      - core
+    ports:
+      - "${FRONTEND_PORT:-3000}:80"
+
+volumes:
+  pgdata:
+  uploads_data:

@@ -1,0 +1,25 @@
+spring:
+  application:
+    name: tournado-core
+  datasource:
+    url: ${SPRING_DATASOURCE_URL:jdbc:postgresql://localhost:5432/tournado}
+    username: ${SPRING_DATASOURCE_USERNAME:tournado_user}
+    password: ${SPRING_DATASOURCE_PASSWORD:tournado_pass}
+    driver-class-name: org.postgresql.Driver
+  jpa:
+    hibernate:
+      ddl-auto: validate
+    open-in-view: false
+    properties:
+      hibernate:
+        jdbc:
+          time_zone: UTC
+  flyway:
+    enabled: true
+    locations: classpath:db/migration
+
+server:
+  port: ${CORE_PORT:8080}
+
+tournado:
+  ai-service-url: ${AI_SERVICE_URL:http://localhost:8000}

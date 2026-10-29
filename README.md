@@ -6,6 +6,15 @@
 
 ---
 
+## 🚀 Швидкий старт (Walking Skeleton / Local Run)
+
+Проєкт повністю контейнеризовано відповідно до **ADR-0009** (PostgreSQL 16 + Spring Boot 3 Core + FastAPI AI Service + React/Nginx Frontend + Mailpit).
+
+### 1. Запуск усього стека однією командою
+```bash
+cp .env.example .env
+docker compose up --build
+
 ## 👥 1. Назва проєкту та склад команди
 
 **Назва:** **Tournado**  
