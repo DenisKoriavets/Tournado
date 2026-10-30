@@ -14,6 +14,32 @@
 ```bash
 cp .env.example .env
 docker compose up --build
+```
+
+### 2. Перевірка працездатності (Health Check & Live Demo)
+Після старту контейнерів сервіси доступні за наступними адресами:
+* **Клієнтський веб-інтерфейс (UI-заглушка):** [http://localhost:3000](http://localhost:3000)  
+  *Відображає назву платформи, індикатор зв'язку з Core API та перелік 5 запланованих екранів MVP (US-01..US-36).*
+* **Сервісний ендпоінт ядра (Core API Health):** [http://localhost:8080/api/health](http://localhost:8080/api/health)  
+  *Очікувана відповідь `200 OK`:*
+  ```json
+  {
+    "status": "UP",
+    "service": "tournado-core",
+    "database": "UP",
+    "timestamp": "2026-10-30T10:15:00.000Z"
+  }
+  ```
+* **ШІ-сервіс арбітражу спорів (AI Service Health):** [http://localhost:8000/api/v1/ai/health](http://localhost:8000/api/v1/ai/health)  
+  *Очікувана відповідь `200 OK`: `{"status":"UP","service":"tournado-ai-service","provider":"mock"}`*
+* **Поштовий сервер для авторизації за магічним лінком (Mailpit UI):** [http://localhost:8025](http://localhost:8025)
+
+### 3. Зупинка сервісів
+```bash
+docker compose down -v
+```
+
+---
 
 ## 👥 1. Назва проєкту та склад команди
 

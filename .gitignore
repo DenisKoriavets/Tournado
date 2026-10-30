@@ -19,6 +19,7 @@ target/
 node_modules/
 dist/
 .npm/
+*.tsbuildinfo
 
 # Python (ai-service/)
 __pycache__/
