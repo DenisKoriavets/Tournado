@@ -41,6 +41,71 @@ docker compose down -v
 
 ---
 
+## 🧪 Як перевірити перший робочий сценарій (US-07..US-11)
+
+Реалізовано перший наскрізний вертикальний зріз (Vertical Slice): **Створення та публічний перегляд турніру**.
+Він проходить крізь усі рівні системи: **React 19 UI ➔ Spring Boot 3 Core (бізнес-валідація та маппули) ➔ PostgreSQL 16 (персистентні таблиці `tournaments` та `tournament_map_pool`)**.
+
+### Сценарій 3-хвилинного Live Demo для викладача
+
+#### Крок 1. Запуск стека
+```bash
+cp .env.example .env
+docker compose up --build
+```
+*(Якщо порт 5432 на хості зайнятий іншим сервісом, вкажіть `POSTGRES_PORT=5433` у `.env`)*.
+
+#### Крок 2. Проходження флоу в браузері (UI)
+1. Відкрийте інтерфейс [http://localhost:3000](http://localhost:3000).
+2. Переконайтеся, що бейдж ядра показує зелене `Backend: UP | DB: UP`.
+3. Натисніть кнопку **«+ Створити турнір»** у правому верхньому куті.
+4. Заповніть параметри:
+   * **Дисципліна:** оберіть `CS2` (автоматично встановить розмір команди `5v5` та відобразить маппул із 7 карт), `Brawl Stars` (`3v3`) або `Chess.com` (`1v1`).
+   * **Назва:** наприклад, `KMA Autumn Championship 2026`.
+   * **Ліміт слотів:** виберіть `8`, `16` або `32` команд.
+   * **Розклад:** натисніть **«Заповнити рекомендованим розкладом»** (автоматично проставить валідні дати: дедлайн реєстрації < check-in < старт) або введіть власні.
+5. Натисніть **«Створити турнір»**.
+   * Форма надсилає `POST /api/v1/tournaments`.
+   * Модальне вікно закривається, з'являється повідомлення про успіх, а новий турнір миттєво з'являється в списку зі статусом `REGISTRATION_OPEN`.
+6. Клікніть на картку щойно створеного турніру — відкриється **детальний перегляд** із повним переліком призначених карт маппулу (US-08) та кнопкою копіювання публічного посилання (US-11).
+
+#### Крок 3. Доказ збереження даних у базі (Persistence Check)
+Виконайте команду в терміналі, щоб показати викладачеві, що дані реально записалися в реляційну базу PostgreSQL і не зникають:
+```bash
+docker exec -it tournado-db psql -U tournado_user -d tournado -c "SELECT id, name, discipline, slot_limit, status, created_at FROM tournaments;"
+docker exec -it tournado-db psql -U tournado_user -d tournado -c "SELECT tournament_id, map_name, sort_order FROM tournament_map_pool;"
+```
+
+#### Крок 4. Альтернативна перевірка через REST API (cURL)
+```bash
+curl -i -X POST http://localhost:8080/api/v1/tournaments \
+  -H "Content-Type: application/json" \
+  -d '{
+    "name": "API Faculty Cup CS2",
+    "discipline": "CS2",
+    "slotLimit": 16,
+    "registrationDeadlineAt": "2026-12-01T15:00:00Z",
+    "checkInOpensAt": "2026-12-01T16:00:00Z",
+    "startTimeAt": "2026-12-01T17:00:00Z"
+  }'
+```
+
+#### Крок 5. Запуск детермінованих тестів (Guardrails)
+* **Бекенд (15 юніт- та MockMvc тестів):**
+  ```bash
+  cd core && mvn test -DargLine="-Dnet.bytebuddy.experimental=true"
+  ```
+* **Фронтенд (21 тест + збірка TypeScript):**
+  ```bash
+  cd frontend && npm test && npm run build
+  ```
+
+#### Крок 6. Звіт про проведене ШІ код-рев'ю
+Звіт автоматизованого аудиту архітектури, контрактів, безпеки та стилю коду зафіксовано в:  
+📄 **[`docs/reviews/PR_5_AI_CODE_REVIEW.md`](docs/reviews/PR_5_AI_CODE_REVIEW.md)** (Verdict: `APPROVED WITH COMMENTS`).
+
+---
+
 ## 👥 1. Назва проєкту та склад команди
 
 **Назва:** **Tournado**  
