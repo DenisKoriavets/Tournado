@@ -50,17 +50,31 @@ export const TournamentList: React.FC<TournamentListProps> = ({
     return res
   }, [tournaments])
 
-  // Filtered list
+  // Filtered and sorted list (live/upcoming priority, then chronological start time)
   const filtered = useMemo(() => {
-    return tournaments.filter((t) => {
-      const matchesDiscipline =
-        selectedDiscipline === 'ALL' || t.discipline === selectedDiscipline
-      const matchesSearch =
-        !searchQuery.trim() ||
-        t.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        (t.description && t.description.toLowerCase().includes(searchQuery.toLowerCase()))
-      return matchesDiscipline && matchesSearch
-    })
+    const statusPriority: Record<string, number> = {
+      IN_PROGRESS: 0,
+      CHECK_IN_ACTIVE: 1,
+      REGISTRATION_OPEN: 2,
+      DRAFT: 3,
+      COMPLETED: 4,
+    }
+
+    return tournaments
+      .filter((t) => {
+        const matchesDiscipline =
+          selectedDiscipline === 'ALL' || t.discipline === selectedDiscipline
+        const matchesSearch =
+          !searchQuery.trim() ||
+          t.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+          (t.description && t.description.toLowerCase().includes(searchQuery.toLowerCase()))
+        return matchesDiscipline && matchesSearch
+      })
+      .sort((a, b) => {
+        const priorityDiff = (statusPriority[a.status] ?? 99) - (statusPriority[b.status] ?? 99)
+        if (priorityDiff !== 0) return priorityDiff
+        return new Date(a.startTimeAt).getTime() - new Date(b.startTimeAt).getTime()
+      })
   }, [tournaments, selectedDiscipline, searchQuery])
 
   return (
@@ -207,11 +221,12 @@ export const TournamentList: React.FC<TournamentListProps> = ({
       {/* Tournament Cards Grid */}
       {!isLoading && filtered.length > 0 && (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {filtered.map((tournament) => (
+          {filtered.map((tournament, idx) => (
             <TournamentCard
               key={tournament.id}
               tournament={tournament}
               onSelect={onSelectTournament}
+              index={idx}
             />
           ))}
         </div>

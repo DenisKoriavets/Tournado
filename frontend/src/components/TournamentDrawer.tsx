@@ -111,7 +111,7 @@ export const TournamentDrawer: React.FC<TournamentDrawerProps> = ({
       />
 
       <div className="fixed inset-y-0 right-0 max-w-full flex pl-10">
-        <div className="w-screen max-w-xl bg-[#121620] border-l border-[#1E2536] shadow-2xl flex flex-col justify-between">
+        <div className="w-screen max-w-xl bg-[#121620] border-l border-[#1E2536] shadow-2xl flex flex-col justify-between animate-slideInRight">
           {/* Top Header */}
           <div className="p-6 border-b border-[#1E2536] bg-[#0E121A]">
             <div className="flex items-center justify-between gap-3 mb-3">

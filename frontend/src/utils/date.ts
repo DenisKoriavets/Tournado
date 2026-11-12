@@ -137,3 +137,31 @@ export function validateSchedule(
     errors
   }
 }
+
+/**
+ * Formats relative remaining time until target ISO timestamp (e.g. "через 2 дн.", "через 5 год.").
+ */
+export function formatRelativeTimeUntil(
+  isoString: string | undefined | null,
+  now: Date = new Date()
+): string {
+  if (!isoString) return '—'
+  const target = new Date(isoString)
+  if (isNaN(target.getTime())) return '—'
+
+  const diffMs = target.getTime() - now.getTime()
+  if (diffMs <= 0) return 'вже триває'
+
+  const totalMinutes = Math.floor(diffMs / 60000)
+  if (totalMinutes < 60) {
+    return `через ${Math.max(1, totalMinutes)} хв.`
+  }
+
+  const totalHours = Math.floor(totalMinutes / 60)
+  if (totalHours < 24) {
+    return `через ${totalHours} год.`
+  }
+
+  const totalDays = Math.floor(totalHours / 24)
+  return `через ${totalDays} дн.`
+}

@@ -72,6 +72,8 @@ export interface DisciplineMeta {
     badgeText: string
     badgeBorder: string
     glowBorder: string
+    topStripClass: string
+    hoverShadowClass: string
   }
 }
 
@@ -83,14 +85,16 @@ export const DISCIPLINE_CONFIG: Record<Discipline, DisciplineMeta> = {
     teamSize: 5,
     formatLabel: '5v5',
     category: 'Tactical Shooter',
-    description: 'Змагальний тактичний шутер Valve (MR12, Overtime MR3 $10k)',
+    description: 'Змагальний тактичний шутер Valve (MR12, Overtime MR3 10k)',
     defaultMaps: ['de_mirage', 'de_inferno', 'de_nuke', 'de_ancient', 'de_anubis', 'de_dust2', 'de_vertigo'],
     theme: {
-      accentColor: '#F59E0B',
-      badgeBg: 'bg-amber-500/10',
-      badgeText: 'text-amber-400',
-      badgeBorder: 'border-amber-500/30',
-      glowBorder: 'hover:border-amber-500/50'
+      accentColor: '#F97316',
+      badgeBg: 'bg-orange-500/10',
+      badgeText: 'text-orange-400',
+      badgeBorder: 'border-orange-500/30',
+      glowBorder: 'hover:border-orange-500/50',
+      topStripClass: 'from-orange-500 via-amber-400 to-orange-600',
+      hoverShadowClass: 'hover:shadow-orange-500/10'
     }
   },
   BRAWL_STARS: {
@@ -103,11 +107,13 @@ export const DISCIPLINE_CONFIG: Record<Discipline, DisciplineMeta> = {
     description: 'Мобільний командний екшн Supercell (Friendly Battle лобі)',
     defaultMaps: ['Shooting Star', 'Backyard Bowl', 'Hard Rock Mine', 'Dueling Beetles', 'Ring of Fire'],
     theme: {
-      accentColor: '#A855F7',
-      badgeBg: 'bg-purple-500/10',
-      badgeText: 'text-purple-400',
-      badgeBorder: 'border-purple-500/30',
-      glowBorder: 'hover:border-purple-500/50'
+      accentColor: '#FACC15',
+      badgeBg: 'bg-yellow-500/10',
+      badgeText: 'text-yellow-300',
+      badgeBorder: 'border-yellow-500/30',
+      glowBorder: 'hover:border-yellow-400/50',
+      topStripClass: 'from-yellow-400 via-amber-400 to-yellow-500',
+      hoverShadowClass: 'hover:shadow-yellow-500/10'
     }
   },
   CHESS: {
@@ -120,11 +126,13 @@ export const DISCIPLINE_CONFIG: Record<Discipline, DisciplineMeta> = {
     description: 'Класичні шахи онлайн на платформі Chess.com (Rapid 10+0)',
     defaultMaps: [],
     theme: {
-      accentColor: '#38BDF8',
-      badgeBg: 'bg-sky-500/10',
-      badgeText: 'text-sky-300',
-      badgeBorder: 'border-sky-500/30',
-      glowBorder: 'hover:border-sky-500/50'
+      accentColor: '#4ADE80',
+      badgeBg: 'bg-emerald-500/10',
+      badgeText: 'text-emerald-400',
+      badgeBorder: 'border-emerald-500/30',
+      glowBorder: 'hover:border-emerald-400/50',
+      topStripClass: 'from-emerald-400 via-green-500 to-emerald-600',
+      hoverShadowClass: 'hover:shadow-emerald-500/10'
     }
   }
 }

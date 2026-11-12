@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { formatDateTime, validateSchedule, generateDemoSchedule, localInputToIso, toLocalDatetimeInputString } from './date'
+import { formatDateTime, validateSchedule, generateDemoSchedule, localInputToIso, toLocalDatetimeInputString, formatRelativeTimeUntil } from './date'
 
 describe('date utils', () => {
   it('formats ISO datetime in Ukrainian locale', () => {
@@ -59,5 +59,18 @@ describe('date utils', () => {
   it('converts local input string to valid ISO-8601 UTC string', () => {
     const iso = localInputToIso('2026-11-01T15:30')
     expect(iso).toMatch(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/)
+  })
+
+  it('formats relative time until future date in days, hours, or minutes', () => {
+    const base = new Date('2026-11-12T12:00:00Z')
+    expect(formatRelativeTimeUntil('2026-11-14T15:00:00Z', base)).toBe('через 2 дн.')
+    expect(formatRelativeTimeUntil('2026-11-12T17:30:00Z', base)).toBe('через 5 год.')
+    expect(formatRelativeTimeUntil('2026-11-12T12:42:00Z', base)).toBe('через 42 хв.')
+  })
+
+  it('returns past label or fallback for elapsed or invalid dates', () => {
+    const base = new Date('2026-11-12T12:00:00Z')
+    expect(formatRelativeTimeUntil('2026-11-12T11:00:00Z', base)).toBe('вже триває')
+    expect(formatRelativeTimeUntil(undefined, base)).toBe('—')
   })
 })

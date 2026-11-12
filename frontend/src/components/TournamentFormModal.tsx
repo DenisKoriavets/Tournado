@@ -220,7 +220,7 @@ export const TournamentFormModal: React.FC<TournamentFormModalProps> = ({
       role="dialog"
       aria-modal="true"
     >
-      <div className="relative w-full max-w-2xl bg-[#121620] border border-[#1E2536] rounded-2xl shadow-2xl overflow-hidden my-8">
+      <div className="relative w-full max-w-2xl bg-[#121620] border border-[#1E2536] rounded-2xl shadow-2xl overflow-hidden my-8 animate-scaleIn">
         {/* Top Header */}
         <div className="px-6 py-5 border-b border-[#1E2536] flex items-center justify-between bg-[#0E121A]">
           <div className="flex items-center gap-3">
