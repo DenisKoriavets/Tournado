@@ -63,15 +63,15 @@ export interface DisciplineMeta {
   shortName: string
   teamSize: number
   formatLabel: string
+  category: string
   description: string
-  icon: string
   defaultMaps: string[]
   theme: {
     accentColor: string
     badgeBg: string
     badgeText: string
     badgeBorder: string
-    ringColor: string
+    glowBorder: string
   }
 }
 
@@ -82,77 +82,77 @@ export const DISCIPLINE_CONFIG: Record<Discipline, DisciplineMeta> = {
     shortName: 'CS2',
     teamSize: 5,
     formatLabel: '5v5',
+    category: 'Tactical Shooter',
     description: 'Змагальний тактичний шутер Valve (MR12, Overtime MR3 $10k)',
-    icon: '🎯',
     defaultMaps: ['de_mirage', 'de_inferno', 'de_nuke', 'de_ancient', 'de_anubis', 'de_dust2', 'de_vertigo'],
     theme: {
-      accentColor: 'amber',
+      accentColor: '#F59E0B',
       badgeBg: 'bg-amber-500/10',
       badgeText: 'text-amber-400',
       badgeBorder: 'border-amber-500/30',
-      ringColor: 'focus:ring-amber-500'
+      glowBorder: 'hover:border-amber-500/50'
     }
   },
   BRAWL_STARS: {
     discipline: 'BRAWL_STARS',
-    name: 'Brawl Stars 3v3',
+    name: 'Brawl Stars',
     shortName: 'Brawl Stars',
     teamSize: 3,
     formatLabel: '3v3',
+    category: 'Mobile Action',
     description: 'Мобільний командний екшн Supercell (Friendly Battle лобі)',
-    icon: '⚡',
     defaultMaps: ['Shooting Star', 'Backyard Bowl', 'Hard Rock Mine', 'Dueling Beetles', 'Ring of Fire'],
     theme: {
-      accentColor: 'cyan',
-      badgeBg: 'bg-cyan-500/10',
-      badgeText: 'text-cyan-400',
-      badgeBorder: 'border-cyan-500/30',
-      ringColor: 'focus:ring-cyan-500'
+      accentColor: '#A855F7',
+      badgeBg: 'bg-purple-500/10',
+      badgeText: 'text-purple-400',
+      badgeBorder: 'border-purple-500/30',
+      glowBorder: 'hover:border-purple-500/50'
     }
   },
   CHESS: {
     discipline: 'CHESS',
-    name: 'Chess.com (Rapid 10+0)',
+    name: 'Chess.com',
     shortName: 'Chess.com',
     teamSize: 1,
     formatLabel: '1v1',
+    category: 'Rapid Strategy',
     description: 'Класичні шахи онлайн на платформі Chess.com (Rapid 10+0)',
-    icon: '♟️',
     defaultMaps: [],
     theme: {
-      accentColor: 'violet',
-      badgeBg: 'bg-violet-500/10',
-      badgeText: 'text-violet-400',
-      badgeBorder: 'border-violet-500/30',
-      ringColor: 'focus:ring-violet-500'
+      accentColor: '#38BDF8',
+      badgeBg: 'bg-sky-500/10',
+      badgeText: 'text-sky-300',
+      badgeBorder: 'border-sky-500/30',
+      glowBorder: 'hover:border-sky-500/50'
     }
   }
 }
 
 export const STATUS_CONFIG: Record<TournamentStatus, { label: string; badgeClass: string; dotClass: string }> = {
   REGISTRATION_OPEN: {
-    label: 'Реєстрація відкрита',
+    label: 'РЕЄСТРАЦІЯ',
     badgeClass: 'bg-emerald-500/10 text-emerald-400 border-emerald-500/30',
-    dotClass: 'bg-emerald-400'
+    dotClass: 'bg-emerald-400 animate-pulse'
   },
   CHECK_IN_ACTIVE: {
-    label: 'Check-in активний',
+    label: 'CHECK-IN',
     badgeClass: 'bg-amber-500/10 text-amber-400 border-amber-500/30',
     dotClass: 'bg-amber-400 animate-pulse'
   },
   IN_PROGRESS: {
-    label: 'Турнір триває',
-    badgeClass: 'bg-indigo-500/10 text-indigo-400 border-indigo-500/30',
-    dotClass: 'bg-indigo-400 animate-pulse'
+    label: 'НАЖИВО',
+    badgeClass: 'bg-rose-500/10 text-rose-400 border-rose-500/30',
+    dotClass: 'bg-rose-400 animate-ping'
   },
   COMPLETED: {
-    label: 'Завершено',
+    label: 'ЗАВЕРШЕНО',
     badgeClass: 'bg-slate-500/10 text-slate-400 border-slate-500/30',
-    dotClass: 'bg-slate-400'
+    dotClass: 'bg-slate-500'
   },
   DRAFT: {
-    label: 'Чернетка',
+    label: 'ЧЕРНЕТКА',
     badgeClass: 'bg-slate-800 text-slate-400 border-slate-700',
-    dotClass: 'bg-slate-500'
+    dotClass: 'bg-slate-600'
   }
 }

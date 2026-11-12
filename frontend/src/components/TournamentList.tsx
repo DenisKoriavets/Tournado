@@ -1,7 +1,15 @@
-import React, { useState, useMemo } from 'react'
+import React, { useMemo, useState } from 'react'
 import type { Discipline, Tournament } from '../types/tournament'
 import { DISCIPLINE_CONFIG } from '../types/tournament'
-import { TournamentCard } from './TournamentCard'
+import { DisciplineIcon, TournamentCard } from './TournamentCard'
+import {
+  AlertCircleIcon,
+  CloseIcon,
+  FilterIcon,
+  PlusIcon,
+  SearchIcon,
+  TrophyIcon
+} from './icons/Icons'
 
 interface TournamentListProps {
   tournaments: Tournament[]
@@ -43,9 +51,11 @@ export const TournamentList: React.FC<TournamentListProps> = ({
 
   // Filtered list
   const filtered = useMemo(() => {
-    return tournaments.filter(t => {
-      const matchesDiscipline = selectedDiscipline === 'ALL' || t.discipline === selectedDiscipline
-      const matchesSearch = !searchQuery.trim() || 
+    return tournaments.filter((t) => {
+      const matchesDiscipline =
+        selectedDiscipline === 'ALL' || t.discipline === selectedDiscipline
+      const matchesSearch =
+        !searchQuery.trim() ||
         t.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
         (t.description && t.description.toLowerCase().includes(searchQuery.toLowerCase()))
       return matchesDiscipline && matchesSearch
@@ -55,25 +65,26 @@ export const TournamentList: React.FC<TournamentListProps> = ({
   return (
     <div className="space-y-6">
       {/* Filter and Search Bar */}
-      <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-4 bg-slate-900/60 border border-slate-800 p-3 rounded-2xl">
+      <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-4 bg-[#121620] border border-[#1E2536] p-3 rounded-2xl">
         {/* Discipline Tabs */}
         <div className="flex items-center gap-1.5 overflow-x-auto pb-1 sm:pb-0">
           <button
             type="button"
             onClick={() => setSelectedDiscipline('ALL')}
-            className={`px-3.5 py-1.5 rounded-xl text-xs font-semibold transition whitespace-nowrap flex items-center gap-2 ${
+            className={`px-3.5 py-2 rounded-xl text-xs font-semibold transition whitespace-nowrap flex items-center gap-2 ${
               selectedDiscipline === 'ALL'
-                ? 'bg-indigo-600 text-white shadow-md shadow-indigo-600/30'
-                : 'text-slate-400 hover:text-white hover:bg-slate-800'
+                ? 'bg-orange-500/10 text-orange-400 border border-orange-500/30 shadow-sm'
+                : 'text-slate-400 hover:text-white hover:bg-slate-800/60'
             }`}
           >
+            <FilterIcon className="w-3.5 h-3.5" />
             <span>Всі дисципліни</span>
-            <span className="px-1.5 py-0.2 rounded-full bg-slate-950/40 text-[10px]">
+            <span className="px-2 py-0.5 rounded-full bg-[#0B0E14] text-[10px] font-mono text-slate-300">
               {counts.ALL}
             </span>
           </button>
 
-          {(Object.keys(DISCIPLINE_CONFIG) as Discipline[]).map(key => {
+          {(Object.keys(DISCIPLINE_CONFIG) as Discipline[]).map((key) => {
             const disc = DISCIPLINE_CONFIG[key]
             const isSelected = selectedDiscipline === key
             return (
@@ -81,15 +92,15 @@ export const TournamentList: React.FC<TournamentListProps> = ({
                 key={key}
                 type="button"
                 onClick={() => setSelectedDiscipline(key)}
-                className={`px-3 py-1.5 rounded-xl text-xs font-semibold transition whitespace-nowrap flex items-center gap-1.5 ${
+                className={`px-3.5 py-2 rounded-xl text-xs font-semibold transition whitespace-nowrap flex items-center gap-2 ${
                   isSelected
                     ? `${disc.theme.badgeBg} ${disc.theme.badgeText} border ${disc.theme.badgeBorder} shadow-sm`
-                    : 'text-slate-400 hover:text-white hover:bg-slate-800'
+                    : 'text-slate-400 hover:text-white hover:bg-slate-800/60'
                 }`}
               >
-                <span>{disc.icon}</span>
+                <DisciplineIcon discipline={key} className="w-3.5 h-3.5" />
                 <span>{disc.shortName}</span>
-                <span className="px-1.5 py-0.2 rounded-full bg-slate-950/40 text-[10px]">
+                <span className="px-2 py-0.5 rounded-full bg-[#0B0E14] text-[10px] font-mono text-slate-300">
                   {counts[key]}
                 </span>
               </button>
@@ -98,21 +109,24 @@ export const TournamentList: React.FC<TournamentListProps> = ({
         </div>
 
         {/* Search Input */}
-        <div className="relative min-w-[220px]">
-          <span className="absolute left-3 top-2.5 text-xs text-slate-500">🔍</span>
+        <div className="relative min-w-[240px]">
+          <span className="absolute left-3 top-2.5 text-slate-500">
+            <SearchIcon className="w-4 h-4" />
+          </span>
           <input
             type="text"
             value={searchQuery}
-            onChange={e => setSearchQuery(e.target.value)}
-            placeholder="Пошук за назвою..."
-            className="w-full pl-8 pr-3 py-1.5 bg-slate-950 border border-slate-800 rounded-xl text-xs text-white placeholder-slate-500 focus:outline-none focus:border-indigo-500 transition"
+            onChange={(e) => setSearchQuery(e.target.value)}
+            placeholder="Пошук за назвою або регламентом..."
+            className="w-full pl-9 pr-8 py-2 bg-[#0B0E14] border border-[#1E2536] rounded-xl text-xs text-white placeholder-slate-500 focus:outline-none focus:border-orange-500 transition"
           />
           {searchQuery && (
             <button
               onClick={() => setSearchQuery('')}
-              className="absolute right-2.5 top-2 text-xs text-slate-500 hover:text-white"
+              className="absolute right-2.5 top-2.5 text-slate-500 hover:text-white"
+              aria-label="Очистити пошук"
             >
-              ✕
+              <CloseIcon className="w-4 h-4" />
             </button>
           )}
         </div>
@@ -120,18 +134,18 @@ export const TournamentList: React.FC<TournamentListProps> = ({
 
       {/* Error state */}
       {error && (
-        <div className="p-4 rounded-xl bg-amber-500/10 border border-amber-500/30 text-amber-200 flex items-center justify-between">
+        <div className="p-4 rounded-xl bg-amber-500/10 border border-amber-500/30 text-amber-200 flex items-center justify-between animate-fadeIn">
           <div className="flex items-center gap-3">
-            <span className="text-xl">⚠️</span>
-            <div className="text-sm">
-              <span className="font-semibold">Попередження: </span>
+            <AlertCircleIcon className="w-5 h-5 text-amber-400 flex-shrink-0" />
+            <div className="text-xs">
+              <span className="font-semibold">Зверніть увагу: </span>
               <span>{error}</span>
             </div>
           </div>
           <button
             type="button"
             onClick={onRetry}
-            className="px-3 py-1 bg-amber-600/30 hover:bg-amber-600/50 border border-amber-500/50 rounded-lg text-xs font-semibold text-amber-100 transition"
+            className="px-3.5 py-1.5 bg-amber-600/20 hover:bg-amber-600/40 border border-amber-500/40 rounded-lg text-xs font-semibold text-amber-200 transition"
           >
             Спробувати знову
           </button>
@@ -141,10 +155,10 @@ export const TournamentList: React.FC<TournamentListProps> = ({
       {/* Loading Skeletons */}
       {isLoading && (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {[1, 2, 3].map(i => (
+          {[1, 2, 3].map((i) => (
             <div
               key={i}
-              className="bg-slate-900/40 border border-slate-800/80 rounded-2xl p-5 space-y-4 animate-pulse"
+              className="bg-[#121620] border border-[#1E2536] rounded-2xl p-5 space-y-4 animate-pulse"
             >
               <div className="flex justify-between">
                 <div className="h-6 w-24 bg-slate-800 rounded-lg" />
@@ -160,27 +174,30 @@ export const TournamentList: React.FC<TournamentListProps> = ({
 
       {/* Empty State */}
       {!isLoading && filtered.length === 0 && (
-        <div className="bg-slate-900/40 border border-dashed border-slate-800 rounded-2xl p-12 text-center space-y-4">
-          <div className="text-5xl">🌪️</div>
-          <div className="max-w-md mx-auto space-y-1">
-            <h3 className="text-lg font-bold text-white">
+        <div className="bg-[#121620] border border-dashed border-[#1E2536] rounded-2xl p-12 text-center space-y-4">
+          <div className="w-14 h-14 mx-auto rounded-2xl bg-orange-500/10 border border-orange-500/20 flex items-center justify-center text-orange-400">
+            <TrophyIcon className="w-7 h-7" />
+          </div>
+          <div className="max-w-md mx-auto space-y-1.5">
+            <h3 className="text-base font-bold text-white">
               {searchQuery || selectedDiscipline !== 'ALL'
                 ? 'Турнірів за заданими критеріями не знайдено'
                 : 'Поки що немає створених турнірів'}
             </h3>
-            <p className="text-sm text-slate-400">
+            <p className="text-xs text-slate-400 leading-relaxed">
               {searchQuery || selectedDiscipline !== 'ALL'
-                ? 'Спробуйте змінити фільтр дисципліни або пошуковий запит.'
-                : 'Створіть свій перший кіберспортивний турнір для CS2, Brawl Stars або Chess.com.'}
+                ? 'Спробуйте змінити фільтр дисципліни або очистити пошуковий запит.'
+                : 'Створіть перший змагальний турнір для Counter-Strike 2, Brawl Stars або Chess.com.'}
             </p>
           </div>
           <div className="pt-2">
             <button
               type="button"
               onClick={onCreateClick}
-              className="px-5 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-sm font-semibold transition inline-flex items-center gap-2 shadow-lg shadow-indigo-600/30"
+              className="px-5 py-2.5 rounded-xl bg-orange-500 hover:bg-orange-400 text-white text-xs font-bold transition inline-flex items-center gap-2 shadow-lg shadow-orange-500/20"
             >
-              <span>+ Створити турнір</span>
+              <PlusIcon className="w-4 h-4" />
+              <span>Створити турнір</span>
             </button>
           </div>
         </div>
@@ -189,7 +206,7 @@ export const TournamentList: React.FC<TournamentListProps> = ({
       {/* Tournament Cards Grid */}
       {!isLoading && filtered.length > 0 && (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {filtered.map(tournament => (
+          {filtered.map((tournament) => (
             <TournamentCard
               key={tournament.id}
               tournament={tournament}
