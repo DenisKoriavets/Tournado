@@ -9,11 +9,11 @@ import type {
 } from '../types/tournament'
 import { DISCIPLINE_CONFIG } from '../types/tournament'
 import { generateDemoSchedule, localInputToIso, validateSchedule } from '../utils/date'
+import { DateTimePicker } from './DateTimePicker'
 import { DisciplineLogo } from './DisciplineLogo'
 import {
   AlertCircleIcon,
   ArrowLeftIcon,
-  CalendarIcon,
   CheckIcon,
   ChevronRightIcon,
   ClockIcon,
@@ -533,56 +533,51 @@ export const TournamentFormModal: React.FC<TournamentFormModalProps> = ({
                 </div>
 
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                  <div>
-                    <label className="block text-[11px] text-slate-400 mb-1 font-mono">
-                      1. Дедлайн реєстрації:
-                    </label>
-                    <input
-                      type="datetime-local"
-                      value={deadlineInput}
-                      onChange={(e) => setDeadlineInput(e.target.value)}
-                      className="w-full px-3 py-2 bg-[#0B0E14] border border-[#1E2536] focus:border-orange-500 rounded-xl text-xs font-mono text-white focus:outline-none"
-                    />
-                    {fieldErrors.registrationDeadlineAt && (
-                      <p className="text-[11px] text-rose-400 mt-1">
-                        {fieldErrors.registrationDeadlineAt}
-                      </p>
-                    )}
-                  </div>
-
-                  <div>
-                    <label className="block text-[11px] text-slate-400 mb-1 font-mono">
-                      2. Відкриття Check-in:
-                    </label>
-                    <input
-                      type="datetime-local"
-                      value={checkInInput}
-                      onChange={(e) => setCheckInInput(e.target.value)}
-                      className="w-full px-3 py-2 bg-[#0B0E14] border border-[#1E2536] focus:border-orange-500 rounded-xl text-xs font-mono text-white focus:outline-none"
-                    />
-                    {fieldErrors.checkInOpensAt && (
-                      <p className="text-[11px] text-rose-400 mt-1">
-                        {fieldErrors.checkInOpensAt}
-                      </p>
-                    )}
-                  </div>
-
-                  <div>
-                    <label className="block text-[11px] text-slate-400 mb-1 font-mono">
-                      3. Початок турніру:
-                    </label>
-                    <input
-                      type="datetime-local"
-                      value={startInput}
-                      onChange={(e) => setStartInput(e.target.value)}
-                      className="w-full px-3 py-2 bg-[#0B0E14] border border-[#1E2536] focus:border-orange-500 rounded-xl text-xs font-mono text-white focus:outline-none"
-                    />
-                    {fieldErrors.startTimeAt && (
-                      <p className="text-[11px] text-rose-400 mt-1">
-                        {fieldErrors.startTimeAt}
-                      </p>
-                    )}
-                  </div>
+                  {[
+                    {
+                      label: '1. Дедлайн реєстрації',
+                      value: deadlineInput,
+                      setter: setDeadlineInput,
+                      errorKey: 'registrationDeadlineAt' as const
+                    },
+                    {
+                      label: '2. Відкриття Check-in',
+                      value: checkInInput,
+                      setter: setCheckInInput,
+                      errorKey: 'checkInOpensAt' as const
+                    },
+                    {
+                      label: '3. Початок турніру',
+                      value: startInput,
+                      setter: setStartInput,
+                      errorKey: 'startTimeAt' as const
+                    }
+                  ].map(({ label, value, setter, errorKey }) => (
+                    <div key={errorKey}>
+                      <label className="block text-[11px] text-slate-400 mb-1 font-mono">
+                        {label}:
+                      </label>
+                      <DateTimePicker
+                        label={label}
+                        value={value}
+                        hasError={Boolean(fieldErrors[errorKey])}
+                        onChange={(val) => {
+                          setter(val)
+                          setFieldErrors((prev) => {
+                            const next = { ...prev }
+                            delete next[errorKey]
+                            delete next.schedule
+                            return next
+                          })
+                        }}
+                      />
+                      {fieldErrors[errorKey] && (
+                        <p className="text-[11px] text-rose-400 mt-1">
+                          {fieldErrors[errorKey]}
+                        </p>
+                      )}
+                    </div>
+                  ))}
                 </div>
 
                 {fieldErrors.schedule && (

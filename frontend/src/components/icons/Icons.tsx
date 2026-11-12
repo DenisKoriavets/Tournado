@@ -236,6 +236,21 @@ export const ChevronRightIcon: React.FC<IconProps> = ({ className = 'w-5 h-5', .
   </svg>
 )
 
+export const ChevronLeftIcon: React.FC<IconProps> = ({ className = 'w-5 h-5', ...props }) => (
+  <svg
+    viewBox="0 0 24 24"
+    fill="none"
+    stroke="currentColor"
+    strokeWidth="2"
+    strokeLinecap="round"
+    strokeLinejoin="round"
+    className={className}
+    {...props}
+  >
+    <polyline points="15 18 9 12 15 6" />
+  </svg>
+)
+
 export const ArrowLeftIcon: React.FC<IconProps> = ({ className = 'w-5 h-5', ...props }) => (
   <svg
     viewBox="0 0 24 24"

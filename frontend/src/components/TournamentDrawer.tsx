@@ -149,9 +149,6 @@ export const TournamentDrawer: React.FC<TournamentDrawerProps> = ({
             <h1 className="text-xl md:text-2xl font-extrabold text-white tracking-tight">
               {tournament.name}
             </h1>
-            <p className="font-mono text-xs text-slate-500 mt-1 truncate">
-              ID: {tournament.id}
-            </p>
 
             {/* Navigation Tabs */}
             <div className="flex items-center gap-2 mt-5 border-b border-[#1E2536] -mb-6 pb-2">
