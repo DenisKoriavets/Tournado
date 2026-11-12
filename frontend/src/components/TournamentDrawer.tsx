@@ -4,15 +4,10 @@ import { DISCIPLINE_CONFIG, STATUS_CONFIG } from '../types/tournament'
 import { formatDateTime } from '../utils/date'
 import { DisciplineLogo } from './DisciplineLogo'
 import {
-  CalendarIcon,
   CheckIcon,
-  ClockIcon,
-  CloseIcon,
   CopyIcon,
-  CrosshairIcon,
-  ServerIcon,
-  ShieldIcon,
-  UsersIcon
+  CloseIcon,
+  ServerIcon
 } from './icons/Icons'
 
 interface TournamentDrawerProps {

@@ -44,8 +44,30 @@ export default function App() {
   }, [])
 
   useEffect(() => {
-    loadTournaments()
-  }, [loadTournaments])
+    let cancelled = false
+
+    getTournaments()
+      .then((data) => {
+        if (!cancelled) {
+          setTournaments(Array.isArray(data) ? data : [])
+          setApiWarning(null)
+        }
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setApiWarning('Не вдалося завантажити список турнірів. Перевірте статус з’єднання з Core API.')
+        }
+      })
+      .finally(() => {
+        if (!cancelled) {
+          setIsLoading(false)
+        }
+      })
+
+    return () => {
+      cancelled = true
+    }
+  }, [])
 
   // Select tournament and optionally fetch full details
   const handleSelectTournament = async (t: Tournament) => {

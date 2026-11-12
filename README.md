@@ -95,14 +95,14 @@ curl -i -X POST http://localhost:8080/api/v1/tournaments \
   }'
 ```
 
-#### Крок 5. Запуск детермінованих тестів (Guardrails)
-* **Бекенд (15 юніт- та MockMvc тестів):**
+#### Крок 5. Запуск детермінованих перевірок (Лінтінг, тести, збірка)
+* **Бекенд (15 тестів + компілятор `-Xlint` + Checkstyle):**
   ```bash
-  cd core && mvn test -DargLine="-Dnet.bytebuddy.experimental=true"
+  cd core && mvn test checkstyle:check -DargLine="-Dnet.bytebuddy.experimental=true"
   ```
-* **Фронтенд (26 тестів у 6 файлах + збірка TypeScript):**
+* **Фронтенд (ESLint + 26 тестів у 6 файлах + TypeScript + Vite):**
   ```bash
-  cd frontend && npm test && npx tsc --noEmit && npm run build
+  cd frontend && npm run lint && npm test && npx tsc --noEmit && npm run build
   ```
 
 #### Крок 6. Звіт про проведене ШІ код-рев'ю

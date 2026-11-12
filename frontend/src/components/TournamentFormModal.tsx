@@ -38,6 +38,14 @@ export const TournamentFormModal: React.FC<TournamentFormModalProps> = ({
   onClose,
   onSuccess
 }) => {
+  if (!isOpen) return null
+  return <TournamentFormContent onClose={onClose} onSuccess={onSuccess} />
+}
+
+const TournamentFormContent: React.FC<Omit<TournamentFormModalProps, 'isOpen'>> = ({
+  onClose,
+  onSuccess
+}) => {
   const [step, setStep] = useState<1 | 2>(1)
 
   // Step 1 state
@@ -56,27 +64,14 @@ export const TournamentFormModal: React.FC<TournamentFormModalProps> = ({
   const [apiError, setApiError] = useState<ProblemDetail | null>(null)
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({})
 
-  // Reset or preset state when modal opens
-  useEffect(() => {
-    if (isOpen) {
-      setStep(1)
-      setApiError(null)
-      setFieldErrors({})
-    }
-  }, [isOpen])
-
   // Escape to close
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'Escape') onClose()
     }
-    if (isOpen) {
-      window.addEventListener('keydown', handleKeyDown)
-    }
+    window.addEventListener('keydown', handleKeyDown)
     return () => window.removeEventListener('keydown', handleKeyDown)
-  }, [isOpen, onClose])
-
-  if (!isOpen) return null
+  }, [onClose])
 
   const handleFillDemoSchedule = () => {
     const demo = generateDemoSchedule()

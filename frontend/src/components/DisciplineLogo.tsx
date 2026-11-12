@@ -4,7 +4,7 @@ import cs2Img from '../assets/disciplines/cs2.jpg'
 import brawlStarsImg from '../assets/disciplines/brawlstars.jpg'
 import chessImg from '../assets/disciplines/chess.png'
 
-export const DISCIPLINE_LOGOS: Record<Discipline, string> = {
+const DISCIPLINE_LOGOS: Record<Discipline, string> = {
   CS2: cs2Img,
   BRAWL_STARS: brawlStarsImg,
   CHESS: chessImg
