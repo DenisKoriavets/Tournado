@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react'
 import type { Tournament } from '../types/tournament'
 import { DISCIPLINE_CONFIG, STATUS_CONFIG } from '../types/tournament'
 import { formatDateTime } from '../utils/date'
-import { DisciplineIcon } from './TournamentCard'
+import { DisciplineLogo } from './DisciplineLogo'
 import {
   CalendarIcon,
   CheckIcon,
@@ -119,11 +119,11 @@ export const TournamentDrawer: React.FC<TournamentDrawerProps> = ({
                 <span
                   className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-lg border text-xs font-semibold ${discMeta.theme.badgeBg} ${discMeta.theme.badgeText} ${discMeta.theme.badgeBorder}`}
                 >
-                  <DisciplineIcon discipline={tournament.discipline} className="w-3.5 h-3.5" />
+                  <DisciplineLogo discipline={tournament.discipline} className="w-4 h-4 rounded-sm object-cover" />
                   <span>{discMeta.shortName}</span>
                 </span>
                 <span className="text-xs font-mono font-medium text-slate-400 bg-slate-900 px-2 py-1 rounded border border-slate-800">
-                  {discMeta.formatLabel} • Single Elimination
+                  {discMeta.formatLabel} (Single Elimination)
                 </span>
               </div>
 

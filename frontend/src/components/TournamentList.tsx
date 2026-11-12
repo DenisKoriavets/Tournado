@@ -1,7 +1,8 @@
 import React, { useMemo, useState } from 'react'
 import type { Discipline, Tournament } from '../types/tournament'
 import { DISCIPLINE_CONFIG } from '../types/tournament'
-import { DisciplineIcon, TournamentCard } from './TournamentCard'
+import { DisciplineLogo } from './DisciplineLogo'
+import { TournamentCard } from './TournamentCard'
 import {
   AlertCircleIcon,
   CloseIcon,
@@ -98,7 +99,7 @@ export const TournamentList: React.FC<TournamentListProps> = ({
                     : 'text-slate-400 hover:text-white hover:bg-slate-800/60'
                 }`}
               >
-                <DisciplineIcon discipline={key} className="w-3.5 h-3.5" />
+                <DisciplineLogo discipline={key} className="w-4 h-4 rounded-sm object-cover" />
                 <span>{disc.shortName}</span>
                 <span className="px-2 py-0.5 rounded-full bg-[#0B0E14] text-[10px] font-mono text-slate-300">
                   {counts[key]}

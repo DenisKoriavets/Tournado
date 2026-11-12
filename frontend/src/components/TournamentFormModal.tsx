@@ -9,7 +9,7 @@ import type {
 } from '../types/tournament'
 import { DISCIPLINE_CONFIG } from '../types/tournament'
 import { generateDemoSchedule, localInputToIso, validateSchedule } from '../utils/date'
-import { DisciplineIcon } from './TournamentCard'
+import { DisciplineLogo } from './DisciplineLogo'
 import {
   AlertCircleIcon,
   ArrowLeftIcon,
@@ -232,7 +232,7 @@ export const TournamentFormModal: React.FC<TournamentFormModalProps> = ({
                 Створити новий турнір
               </h2>
               <p className="text-xs text-slate-400">
-                Single Elimination • Конфігурація дисципліни, сітки та розкладу
+                Формат Single Elimination: вибір дисципліни, сітки та розкладу
               </p>
             </div>
           </div>
@@ -345,8 +345,8 @@ export const TournamentFormModal: React.FC<TournamentFormModalProps> = ({
                             : 'bg-[#0B0E14] border-[#1E2536] hover:border-slate-700 hover:bg-[#151A26]'
                         }`}
                       >
-                        <div className="flex items-center justify-between mb-2">
-                          <DisciplineIcon discipline={key} className="w-6 h-6 text-orange-400" />
+                        <div className="flex items-center justify-between mb-3">
+                          <DisciplineLogo discipline={key} className="w-10 h-10 rounded-xl object-cover shadow-md" />
                           <span
                             className={`text-xs font-mono font-bold px-2 py-0.5 rounded-md border ${item.theme.badgeBg} ${item.theme.badgeText} ${item.theme.badgeBorder}`}
                           >

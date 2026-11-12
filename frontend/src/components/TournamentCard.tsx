@@ -2,14 +2,12 @@ import React from 'react'
 import type { Discipline, Tournament } from '../types/tournament'
 import { DISCIPLINE_CONFIG, STATUS_CONFIG } from '../types/tournament'
 import { formatDateTime, formatShortDateTime } from '../utils/date'
+import { DisciplineLogo } from './DisciplineLogo'
 import {
   CalendarIcon,
   ChevronRightIcon,
   ClockIcon,
-  CrosshairIcon,
-  CrownIcon,
-  UsersIcon,
-  ZapIcon
+  UsersIcon
 } from './icons/Icons'
 
 interface TournamentCardProps {
@@ -21,16 +19,7 @@ export const DisciplineIcon: React.FC<{ discipline: Discipline; className?: stri
   discipline,
   className = 'w-4 h-4'
 }) => {
-  switch (discipline) {
-    case 'CS2':
-      return <CrosshairIcon className={className} />
-    case 'BRAWL_STARS':
-      return <ZapIcon className={className} />
-    case 'CHESS':
-      return <CrownIcon className={className} />
-    default:
-      return <CrosshairIcon className={className} />
-  }
+  return <DisciplineLogo discipline={discipline} className={className} />
 }
 
 export const TournamentCard: React.FC<TournamentCardProps> = ({ tournament, onSelect }) => {
@@ -81,7 +70,7 @@ export const TournamentCard: React.FC<TournamentCardProps> = ({ tournament, onSe
             <span
               className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg border text-xs font-semibold ${discMeta.theme.badgeBg} ${discMeta.theme.badgeText} ${discMeta.theme.badgeBorder}`}
             >
-              <DisciplineIcon discipline={tournament.discipline} className="w-3.5 h-3.5" />
+              <DisciplineLogo discipline={tournament.discipline} className="w-4 h-4 rounded-sm object-cover" />
               <span>{discMeta.shortName}</span>
             </span>
             <span className="text-[11px] font-mono font-medium text-slate-400 bg-slate-900/80 px-2 py-0.5 rounded border border-slate-800">
