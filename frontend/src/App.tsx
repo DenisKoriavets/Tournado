@@ -148,7 +148,7 @@ export default function App() {
           <div>
             <div className="inline-flex items-center gap-2 px-2.5 py-1 rounded-lg bg-orange-500/10 border border-orange-500/20 text-orange-400 text-[11px] font-mono font-semibold mb-2">
               <ZapIcon className="w-3.5 h-3.5" />
-              <span>ОФІЦІЙНІ ЗМАГАННЯ • СЕЗОН 2026</span>
+              <span>Офіційні змагання 2026</span>
             </div>
             <h1 className="text-2xl sm:text-3xl font-extrabold text-white tracking-tight">
               Кіберспортивні турніри
@@ -181,12 +181,9 @@ export default function App() {
 
       {/* Clean Minimalist Footer */}
       <footer className="border-t border-[#1E2536] bg-[#0E121A] py-6 text-center text-xs text-slate-500">
-        <div className="max-w-7xl mx-auto px-4 flex flex-col sm:flex-row items-center justify-between gap-2">
+        <div className="max-w-7xl mx-auto px-4 flex items-center justify-between">
           <div>
-            <span className="font-bold text-slate-400">Tournado</span> • Платформа кіберспортивних турнірів © 2026
-          </div>
-          <div className="font-mono text-[11px] text-slate-600">
-            CS2 • Brawl Stars • Chess.com • Single Elimination
+            <span className="font-bold text-slate-400">Tournado</span> — Платформа кіберспортивних турнірів © 2026
           </div>
         </div>
       </footer>
