@@ -1,8 +1,8 @@
 # PR #5 AI Code Review & Security Audit Report
 
-> **Target Branch:** `5_vertical_slice_tournaments`  
+> **Pull Request:** `#10` (`5_vertical_slice_tournaments` -> `main`)  
 > **Review Scope:** Vertical Slice 1 — Tournament Creation & Retrieval (`US-07`..`US-11`)  
-> **Review Date:** 2026-11-10  
+> **Review Date:** 2026-11-12  
 > **Reviewers:** Senior AI Code Reviewer & Lead Security Auditor  
 > **Traceability:** ADR-0001, ADR-0003, ADR-0004, `docs/contracts/` (`api-contracts.md`, `data-schema.md`, `error-format.md`), `CLAUDE.md`
 
@@ -16,8 +16,8 @@ The implementation for **Vertical Slice 1 (Tournament Creation & Retrieval, US-0
 
 All automated test suites pass cleanly:
 - **Backend Core:** `15 / 15` tests pass (`mvn test -DargLine="-Dnet.bytebuddy.experimental=true"`).
-- **Frontend Web:** `21 / 21` tests pass (`npm test` via Vitest).
-- **Frontend Production Build:** Clean compilation without TypeScript errors (`npm run build`).
+- **Frontend Web:** `26 / 26` tests pass across 6 test files (`npm test` via Vitest).
+- **Frontend Production Build:** Clean compilation without TypeScript errors (`npx tsc --noEmit && npm run build`).
 
 A few minor spec alignment and test polish recommendations (detailed below) have been cataloged with confidence scores, none of which block merging.
 
@@ -76,11 +76,12 @@ A few minor spec alignment and test polish recommendations (detailed below) have
 ### 3.4 Frontend Implementation Quality
 - **Technology Stack:** Built with React 19, TypeScript (Strict Mode), Vite, and Tailwind CSS.
 - **Components:**
-  - `TournamentForm`: Multi-step responsive modal with discipline selection, slot chips, live schedule validation preview, recommended schedule generator ("⚡ Заповнити рекомендованим розкладом"), and inline RFC 7807 error banner.
-  - `TournamentCard`: Clean dark-mode cards with discipline badge, team size chip, occupied slots progress bar, and schedule overview.
-  - `TournamentList`: Discipline tabs with live counter badges, search filter by name/description, loading skeletons, and error retry state.
-  - `TournamentDetailsModal`: Detailed view displaying full schedule breakdown, copyable public tournament link (US-11) with clipboard animation, official map pool badges, and CS2 server connect command.
-- **Verification:** All 21 Vitest tests pass; `tsc -b` compiles without errors.
+  - `TournamentFormModal`: 2-step creation modal with official discipline logos (`DisciplineLogo`), slot chips, live schedule validation preview, custom dark `DateTimePicker` with explicit "Застосувати" confirmation button, recommended schedule generator, and inline RFC 7807 error banner.
+  - `TournamentCard`: Broadcast-style dark cards with discipline top accent strips, official game logos, slot fill indicator, relative countdown (`formatRelativeTimeUntil`), and staggered reveal animation.
+  - `TournamentList`: Priority-sorted grid (live/check-in/upcoming first), discipline tabs with counter badges, search filter by name/description, loading skeletons, and error retry state.
+  - `TournamentDrawer`: Right slide-over drawer displaying full schedule breakdown, copyable public tournament link (US-11) with clipboard feedback, official map pool badges, and CS2 server connect command (with internal UUID hidden from the user-facing header).
+- **Database Seeding (`V3__seed_sample_tournaments.sql`):** Idempotent Flyway migration seeding 6 realistic Ukrainian esports tournaments (`CS2`, `BRAWL_STARS`, `CHESS`) and `tournament_map_pool` rows.
+- **Verification:** All 26 Vitest tests across 6 suites pass; `tsc -b` and `vite build` compile without errors.
 
 ---
 
