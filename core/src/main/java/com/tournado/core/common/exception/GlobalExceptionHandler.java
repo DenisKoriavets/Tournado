@@ -27,6 +27,9 @@ public class GlobalExceptionHandler {
         problem.setInstance(URI.create(request.getRequestURI()));
         problem.setProperty("code", ex.getCode());
         problem.setProperty("timestamp", Instant.now());
+        if (!ex.getInvalidParams().isEmpty()) {
+            problem.setProperty("invalidParams", ex.getInvalidParams());
+        }
 
         return ResponseEntity.status(ex.getStatus())
                 .contentType(MediaType.APPLICATION_PROBLEM_JSON)
