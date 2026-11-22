@@ -1,5 +1,6 @@
 package com.tournado.core.tournaments.domain;
 
+import com.tournado.core.common.domain.Discipline;
 import jakarta.persistence.CascadeType;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;

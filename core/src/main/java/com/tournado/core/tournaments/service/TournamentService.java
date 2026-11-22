@@ -10,8 +10,10 @@ import com.tournado.core.tournaments.exception.InvalidScheduleOrderException;
 import com.tournado.core.tournaments.exception.InvalidSlotLimitException;
 import com.tournado.core.tournaments.exception.TournamentNotFoundException;
 import com.tournado.core.tournaments.repository.TournamentRepository;
+import java.time.Clock;
 import java.time.Instant;
 import java.util.List;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
@@ -21,22 +23,28 @@ import org.springframework.transaction.annotation.Transactional;
 @Service
 public class TournamentService implements TournamentQueryService {
 
-    public static final UUID SYSTEM_ORGANIZER_ID = UUID.fromString("00000000-0000-0000-0000-000000000001");
     private static final Set<Integer> ALLOWED_SLOT_LIMITS = Set.of(8, 16, 32);
 
     private final TournamentRepository tournamentRepository;
     private final TournamentMapPoolProvider mapPoolProvider;
+    private final Clock clock;
 
-    public TournamentService(TournamentRepository tournamentRepository, TournamentMapPoolProvider mapPoolProvider) {
+    public TournamentService(
+            TournamentRepository tournamentRepository,
+            TournamentMapPoolProvider mapPoolProvider,
+            Clock clock) {
         this.tournamentRepository = tournamentRepository;
         this.mapPoolProvider = mapPoolProvider;
+        this.clock = clock;
     }
 
     @Transactional
-    public TournamentResponse createTournament(CreateTournamentRequest request) {
+    public TournamentResponse createTournament(CreateTournamentRequest request, UUID creatorUserId) {
+        Objects.requireNonNull(creatorUserId, "creatorUserId must not be null");
         validateSlotLimit(request.slotLimit());
         validateScheduleOrder(request.registrationDeadlineAt(), request.checkInOpensAt(), request.startTimeAt());
 
+        Instant now = Instant.now(clock);
         TournamentEntity entity = new TournamentEntity();
         entity.setId(UUID.randomUUID());
         entity.setName(request.name().trim());
@@ -49,9 +57,9 @@ public class TournamentService implements TournamentQueryService {
         entity.setCheckInOpensAt(request.checkInOpensAt());
         entity.setStartTimeAt(request.startTimeAt());
         entity.setCs2ServerConnect(request.cs2ServerConnect());
-        entity.setCreatedByUserId(SYSTEM_ORGANIZER_ID);
-        entity.setCreatedAt(Instant.now());
-        entity.setUpdatedAt(Instant.now());
+        entity.setCreatedByUserId(creatorUserId);
+        entity.setCreatedAt(now);
+        entity.setUpdatedAt(now);
 
         List<String> mapNames = mapPoolProvider.getMapPoolForDiscipline(request.discipline());
         for (int i = 0; i < mapNames.size(); i++) {

@@ -1,4 +1,4 @@
-package com.tournado.core.tournaments.domain;
+package com.tournado.core.common.domain;
 
 import java.util.List;
 
