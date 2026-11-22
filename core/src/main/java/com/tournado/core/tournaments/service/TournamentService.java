@@ -3,20 +3,24 @@ package com.tournado.core.tournaments.service;
 import com.tournado.core.tournaments.api.dto.CreateTournamentRequest;
 import com.tournado.core.tournaments.api.dto.TournamentResponse;
 import com.tournado.core.tournaments.api.dto.TournamentSummaryResponse;
+import com.tournado.core.tournaments.domain.RegistrationStatus;
 import com.tournado.core.tournaments.domain.TournamentEntity;
 import com.tournado.core.tournaments.domain.TournamentFormat;
 import com.tournado.core.tournaments.domain.TournamentStatus;
 import com.tournado.core.tournaments.exception.InvalidScheduleOrderException;
 import com.tournado.core.tournaments.exception.InvalidSlotLimitException;
 import com.tournado.core.tournaments.exception.TournamentNotFoundException;
+import com.tournado.core.tournaments.repository.RegistrationRepository;
 import com.tournado.core.tournaments.repository.TournamentRepository;
 import java.time.Clock;
 import java.time.Instant;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
+import java.util.stream.Collectors;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -24,16 +28,23 @@ import org.springframework.transaction.annotation.Transactional;
 public class TournamentService implements TournamentQueryService {
 
     private static final Set<Integer> ALLOWED_SLOT_LIMITS = Set.of(8, 16, 32);
+    private static final List<RegistrationStatus> ACTIVE_REGISTRATION_STATUSES = List.of(
+            RegistrationStatus.REGISTERED,
+            RegistrationStatus.CHECKED_IN
+    );
 
     private final TournamentRepository tournamentRepository;
+    private final RegistrationRepository registrationRepository;
     private final TournamentMapPoolProvider mapPoolProvider;
     private final Clock clock;
 
     public TournamentService(
             TournamentRepository tournamentRepository,
+            RegistrationRepository registrationRepository,
             TournamentMapPoolProvider mapPoolProvider,
             Clock clock) {
         this.tournamentRepository = tournamentRepository;
+        this.registrationRepository = registrationRepository;
         this.mapPoolProvider = mapPoolProvider;
         this.clock = clock;
     }
@@ -72,8 +83,25 @@ public class TournamentService implements TournamentQueryService {
 
     @Transactional(readOnly = true)
     public List<TournamentSummaryResponse> getTournaments() {
-        return tournamentRepository.findAll().stream()
-                .map(entity -> TournamentSummaryResponse.fromEntity(entity, 0))
+        List<TournamentEntity> tournaments = tournamentRepository.findAll();
+        if (tournaments.isEmpty()) {
+            return List.of();
+        }
+        List<UUID> tournamentIds = tournaments.stream()
+                .map(TournamentEntity::getId)
+                .toList();
+        Map<UUID, Integer> countsByTournamentId = registrationRepository
+                .countByTournamentIdsAndStatusIn(tournamentIds, ACTIVE_REGISTRATION_STATUSES)
+                .stream()
+                .collect(Collectors.toMap(
+                        RegistrationRepository.TournamentRegistrationCount::getTournamentId,
+                        count -> Math.toIntExact(count.getRegisteredCount())
+                ));
+        return tournaments.stream()
+                .map(entity -> TournamentSummaryResponse.fromEntity(
+                        entity,
+                        countsByTournamentId.getOrDefault(entity.getId(), 0)
+                ))
                 .toList();
     }
 
@@ -81,14 +109,23 @@ public class TournamentService implements TournamentQueryService {
     public TournamentResponse getTournamentById(UUID id) {
         TournamentEntity entity = tournamentRepository.findById(id)
                 .orElseThrow(() -> new TournamentNotFoundException(id));
-        return TournamentResponse.fromEntity(entity, 0);
+        int registeredCount = Math.toIntExact(
+                registrationRepository.countByTournamentIdAndStatusIn(entity.getId(), ACTIVE_REGISTRATION_STATUSES)
+        );
+        return TournamentResponse.fromEntity(entity, registeredCount);
     }
 
     @Override
     @Transactional(readOnly = true)
     public Optional<TournamentResponse> findTournamentById(UUID id) {
         return tournamentRepository.findById(id)
-                .map(entity -> TournamentResponse.fromEntity(entity, 0));
+                .map(entity -> TournamentResponse.fromEntity(
+                        entity,
+                        Math.toIntExact(registrationRepository.countByTournamentIdAndStatusIn(
+                                entity.getId(),
+                                ACTIVE_REGISTRATION_STATUSES
+                        ))
+                ));
     }
 
     @Override

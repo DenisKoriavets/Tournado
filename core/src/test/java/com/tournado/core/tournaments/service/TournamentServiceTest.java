@@ -4,10 +4,12 @@ import com.tournado.core.common.domain.Discipline;
 import com.tournado.core.tournaments.api.dto.CreateTournamentRequest;
 import com.tournado.core.tournaments.api.dto.TournamentResponse;
 import com.tournado.core.tournaments.api.dto.TournamentSummaryResponse;
+import com.tournado.core.tournaments.domain.RegistrationStatus;
 import com.tournado.core.tournaments.domain.TournamentEntity;
 import com.tournado.core.tournaments.exception.InvalidScheduleOrderException;
 import com.tournado.core.tournaments.exception.InvalidSlotLimitException;
 import com.tournado.core.tournaments.exception.TournamentNotFoundException;
+import com.tournado.core.tournaments.repository.RegistrationRepository;
 import com.tournado.core.tournaments.repository.TournamentRepository;
 import java.time.Clock;
 import java.time.ZoneOffset;
@@ -31,13 +33,21 @@ class TournamentServiceTest {
     @Mock
     private TournamentRepository tournamentRepository;
 
+    @Mock
+    private RegistrationRepository registrationRepository;
+
     private TournamentService tournamentService;
 
     @BeforeEach
     void setUp() {
         TournamentMapPoolProvider mapPoolProvider = new TournamentMapPoolProvider();
         Clock fixedClock = Clock.fixed(NOW, ZoneOffset.UTC);
-        tournamentService = new TournamentService(tournamentRepository, mapPoolProvider, fixedClock);
+        tournamentService = new TournamentService(
+                tournamentRepository,
+                registrationRepository,
+                mapPoolProvider,
+                fixedClock
+        );
     }
 
     @Test
@@ -108,10 +118,14 @@ class TournamentServiceTest {
     }
 
     @Test
-    void givenExistingTournamentId_getTournamentById_shouldReturnTournamentResponse() {
+    void givenExistingTournamentId_getTournamentById_shouldReturnTournamentResponseWithActiveCount() {
         TournamentEntity entity = buildTournamentEntity(TOURNAMENT_ID, Discipline.CS2, 16);
-        TournamentResponse expected = buildExpectedTournamentResponse();
+        TournamentResponse expected = buildExpectedTournamentResponseWithCount(3);
         when(tournamentRepository.findById(TOURNAMENT_ID)).thenReturn(Optional.of(entity));
+        when(registrationRepository.countByTournamentIdAndStatusIn(
+                TOURNAMENT_ID,
+                List.of(RegistrationStatus.REGISTERED, RegistrationStatus.CHECKED_IN)))
+                .thenReturn(3L);
 
         TournamentResponse response = tournamentService.getTournamentById(TOURNAMENT_ID);
 
@@ -129,10 +143,18 @@ class TournamentServiceTest {
     }
 
     @Test
-    void givenTournamentsInRepository_getTournaments_shouldReturnSummaryList() {
+    void givenTournamentsInRepository_getTournaments_shouldReturnSummaryListWithActiveCounts() {
         TournamentEntity entity = buildTournamentEntity(TOURNAMENT_ID, Discipline.CS2, 16);
-        List<TournamentSummaryResponse> expected = List.of(buildExpectedTournamentSummaryResponse());
+        List<TournamentSummaryResponse> expected = List.of(buildExpectedTournamentSummaryResponseWithCount(4));
+        RegistrationRepository.TournamentRegistrationCount projection =
+                mock(RegistrationRepository.TournamentRegistrationCount.class);
+        when(projection.getTournamentId()).thenReturn(TOURNAMENT_ID);
+        when(projection.getRegisteredCount()).thenReturn(4L);
         when(tournamentRepository.findAll()).thenReturn(List.of(entity));
+        when(registrationRepository.countByTournamentIdsAndStatusIn(
+                List.of(TOURNAMENT_ID),
+                List.of(RegistrationStatus.REGISTERED, RegistrationStatus.CHECKED_IN)))
+                .thenReturn(List.of(projection));
 
         List<TournamentSummaryResponse> summaries = tournamentService.getTournaments();
 
