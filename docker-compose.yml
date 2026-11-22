@@ -48,6 +48,8 @@ services:
         condition: service_healthy
       ai-service:
         condition: service_started
+      mail:
+        condition: service_started
     environment:
       SPRING_DATASOURCE_URL: jdbc:postgresql://db:5432/${POSTGRES_DB:-tournado}
       SPRING_DATASOURCE_USERNAME: ${POSTGRES_USER:-tournado_user}
