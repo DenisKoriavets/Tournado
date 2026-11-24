@@ -3,6 +3,7 @@ import { getTournamentById, getTournaments } from './api/tournaments'
 import { AuthModal } from './components/AuthModal'
 import { DisciplineLogo } from './components/DisciplineLogo'
 import { JoinInviteModal } from './components/JoinInviteModal'
+import { MatchRoomModal } from './components/MatchRoomModal'
 import { ProfileModal } from './components/ProfileModal'
 import { TeamsDrawer } from './components/TeamsDrawer'
 import { TournamentDrawer } from './components/TournamentDrawer'
@@ -14,6 +15,7 @@ import {
   ChevronRightIcon,
   ClockIcon,
   CloseIcon,
+  GamepadIcon,
   LogInIcon,
   LogOutIcon,
   PlusIcon,
@@ -33,6 +35,14 @@ function readJoinTokenFromPath(): string | null {
   const match = window.location.pathname.match(/^\/join\/([^/]+)\/?$/)
   return match ? decodeURIComponent(match[1]) : null
 }
+
+// Deterministic Match Room fixtures from V4__seed_match_room_qa_data.sql, used for manual QA
+// of Ready Check / Map Veto (US-22, US-23, US-25, US-26) ahead of bracket generation (US-18..21).
+const QA_MATCH_OPTIONS: { label: string; matchId: string }[] = [
+  { label: 'CS2 — Map Veto', matchId: '22222222-0005-4000-8000-000000000001' },
+  { label: 'Brawl Stars — Map Veto', matchId: '22222222-0005-4000-8000-000000000002' },
+  { label: 'Chess.com — авто-пропуск', matchId: '22222222-0005-4000-8000-000000000003' }
+]
 
 export default function App() {
   return (
@@ -65,6 +75,8 @@ function AppShell() {
   const [isTeamsOpen, setIsTeamsOpen] = useState<boolean>(false)
   const [initialTeamId, setInitialTeamId] = useState<string | null>(null)
   const [joinToken, setJoinToken] = useState<string | null>(() => readJoinTokenFromPath())
+  const [viewingMatchId, setViewingMatchId] = useState<string | null>(null)
+  const [isMatchMenuOpen, setIsMatchMenuOpen] = useState<boolean>(false)
 
   const [selectedTournament, setSelectedTournament] = useState<Tournament | null>(null)
   const [notification, setNotification] = useState<{
@@ -161,6 +173,15 @@ function AppShell() {
     setIsTeamsOpen(true)
   }
 
+  const handleOpenQaMatch = (matchId: string) => {
+    if (!user) {
+      openAuthModal('Увійдіть, щоб переглянути Match Room.')
+      return
+    }
+    setViewingMatchId(matchId)
+    setIsMatchMenuOpen(false)
+  }
+
   const handleCloseJoinInvite = () => {
     setJoinToken(null)
     if (typeof window !== 'undefined' && window.location.pathname.startsWith('/join/')) {
@@ -248,12 +269,39 @@ function AppShell() {
                 <UsersIcon className="w-3.5 h-3.5 text-orange-400" />
                 <span>Мої команди</span>
               </button>
-              <span className="hidden lg:flex px-3 py-1.5 text-slate-500 cursor-not-allowed items-center gap-1.5">
-                <span>Матчі</span>
-                <span className="text-[9px] font-mono bg-slate-800 text-slate-400 px-1.5 py-0.2 rounded">
-                  Незабаром
-                </span>
-              </span>
+              <div className="hidden lg:block relative">
+                <button
+                  type="button"
+                  onClick={() => setIsMatchMenuOpen((prev) => !prev)}
+                  className="px-3 py-1.5 rounded-lg text-slate-300 hover:text-white hover:bg-[#181F2E] transition flex items-center gap-1.5 cursor-pointer"
+                >
+                  <GamepadIcon className="w-3.5 h-3.5 text-orange-400" />
+                  <span>Матчі</span>
+                  <span className="text-[9px] font-mono bg-slate-800 text-slate-400 px-1.5 py-0.2 rounded">
+                    QA
+                  </span>
+                </button>
+                {isMatchMenuOpen && (
+                  <>
+                    <div className="fixed inset-0 z-40" onClick={() => setIsMatchMenuOpen(false)} />
+                    <div className="absolute z-50 top-full left-0 mt-1 w-56 rounded-xl bg-[#121620] border border-[#1E2536] shadow-2xl overflow-hidden animate-fadeIn">
+                      <div className="px-3 py-2 text-[10px] font-mono uppercase tracking-wider text-slate-500 border-b border-[#1E2536]">
+                        Швидкий перегляд Match Room
+                      </div>
+                      {QA_MATCH_OPTIONS.map((option) => (
+                        <button
+                          key={option.matchId}
+                          type="button"
+                          onClick={() => handleOpenQaMatch(option.matchId)}
+                          className="w-full text-left px-3 py-2 text-xs text-slate-200 hover:bg-[#181F2E] hover:text-orange-400 transition cursor-pointer"
+                        >
+                          {option.label}
+                        </button>
+                      ))}
+                    </div>
+                  </>
+                )}
+              </div>
               <span className="hidden lg:inline-block px-3 py-1.5 text-slate-500 cursor-not-allowed">
                 Рейтинги
               </span>
@@ -483,6 +531,9 @@ function AppShell() {
         onClose={() => setSelectedTournament(null)}
         onRegistrationsChanged={handleRegistrationsChanged}
       />
+
+      {/* Match Room Modal (Ready Check / Map Veto) */}
+      <MatchRoomModal matchId={viewingMatchId} onClose={() => setViewingMatchId(null)} />
     </div>
   )
 }
