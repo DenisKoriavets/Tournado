@@ -337,9 +337,20 @@ CREATE TABLE disputes (
     resolved_at TIMESTAMPTZ NULL,
     resolution_winner_team_id UUID NULL REFERENCES teams(id) ON DELETE RESTRICT,
     resolution_notes TEXT NULL,
+    -- V5__dispute_resolution_score.sql (US-34: the match is closed with a final score)
+    resolution_team1_score INTEGER NULL,
+    resolution_team2_score INTEGER NULL,
+    resolution_source VARCHAR(32) NULL,
     created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
     
-    CONSTRAINT chk_disputes_status CHECK (status IN ('OPEN', 'RESOLVED'))
+    CONSTRAINT chk_disputes_status CHECK (status IN ('OPEN', 'RESOLVED')),
+    CONSTRAINT chk_disputes_resolution_scores CHECK (
+        (resolution_team1_score IS NULL OR resolution_team1_score >= 0) AND
+        (resolution_team2_score IS NULL OR resolution_team2_score >= 0)
+    ),
+    CONSTRAINT chk_disputes_resolution_source CHECK (
+        resolution_source IS NULL OR resolution_source IN ('AI_SUGGESTION', 'MANUAL_SCORE')
+    )
 );
 
 -- Crucial invariant: exactly one active dispute allowed per match
@@ -355,6 +366,8 @@ CREATE TABLE ai_analysis_results (
     recognized_team2_score INTEGER NULL,
     confidence NUMERIC(4,3) NULL,
     
+    -- JSON array of per-nickname roster checks:
+    -- [{"nickname", "side": "TEAM1|TEAM2|null", "inRoster", "matchedTeam", "matchedRosterName"}]
     nicknames_detected JSONB NULL,
     nicknames_matched_all BOOLEAN NOT NULL DEFAULT FALSE,
     raw_response_payload JSONB NULL,
@@ -397,6 +410,6 @@ CREATE INDEX idx_standings_tournament ON tournament_standings(tournament_id, ran
 | **E8** | Match Room State | `matches`, `match_bans`, `match_credentials` | Turn-based veto tracking; `UNIQUE(match_id, map_name)`; 1:1 credentials. |
 | **E9** | Score Submission | `score_submissions` | `UNIQUE(match_id, team_id)`; non-negative scores. |
 | **E10** | Chess Result Import| `chess_import_logs` | 1:1 with match; stores external match URL and game scores. |
-| **E11** | Dispute | `disputes` | **Partial Index:** `UNIQUE(match_id) WHERE status = 'OPEN'`; screenshot metadata. |
+| **E11** | Dispute | `disputes` | **Partial Index:** `UNIQUE(match_id) WHERE status = 'OPEN'`; screenshot metadata; final ruling (`resolution_*`: winner, score, source `AI_SUGGESTION`/`MANUAL_SCORE`). |
 | **E12** | AI Analysis | `ai_analysis_results` | 1:1 with dispute; `status IN ('SUCCESS', 'UNRECOGNIZED', 'FAILED')`. |
 | **E13** | Standings / Export | `tournament_standings` | `UNIQUE(tournament_id, rank_place)` ensures strict rankings. |

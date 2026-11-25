@@ -6,6 +6,9 @@ import com.tournado.core.matches.domain.MatchBanEntity;
 import com.tournado.core.matches.domain.MatchCredentialsEntity;
 import com.tournado.core.matches.domain.MatchEntity;
 import com.tournado.core.matches.domain.MatchStatus;
+import com.tournado.core.matches.domain.ScoreSubmissionEntity;
+import com.tournado.core.matches.service.MatchView;
+import com.tournado.core.matches.service.ScoreSubmissionView;
 import com.tournado.core.teams.service.TeamMemberView;
 import com.tournado.core.teams.service.TeamView;
 import com.tournado.core.tournaments.api.dto.TournamentResponse;
@@ -266,6 +269,79 @@ public final class MatchTestResources {
         problem.setTitle("Conflict");
         problem.setInstance(URI.create(instance));
         problem.setProperty("code", "MATCH_NOT_IN_PROGRESS");
+        return problem;
+    }
+
+    public static final UUID NEXT_MATCH_ID = UUID.fromString("c01d2345-6789-abcd-ef01-23456789abce");
+
+    public static ScoreSubmissionEntity buildScoreSubmissionEntity(UUID teamId, UUID userId, int team1Score, int team2Score) {
+        ScoreSubmissionEntity submission = new ScoreSubmissionEntity();
+        submission.setId(UUID.fromString("5c0e0000-0000-4000-8000-000000000001"));
+        submission.setMatchId(MATCH_ID);
+        submission.setTeamId(teamId);
+        submission.setSubmittedByUserId(userId);
+        submission.setTeam1Score(team1Score);
+        submission.setTeam2Score(team2Score);
+        submission.setSubmittedAt(NOW);
+        return submission;
+    }
+
+    public static MatchEntity buildInProgressMatchEntity(int roundNumber, int matchOrder) {
+        MatchEntity match = buildInProgressCs2MatchEntity();
+        match.setRoundNumber(roundNumber);
+        match.setMatchOrder(matchOrder);
+        return match;
+    }
+
+    public static MatchEntity buildDisputedMatchEntity() {
+        MatchEntity match = buildInProgressCs2MatchEntity();
+        match.setStatus(MatchStatus.DISPUTED);
+        return match;
+    }
+
+    public static MatchEntity buildCompletedMatchEntity(int roundNumber, int matchOrder, UUID winnerTeamId) {
+        MatchEntity match = buildInProgressMatchEntity(roundNumber, matchOrder);
+        match.setStatus(MatchStatus.COMPLETED);
+        match.setWinnerTeamId(winnerTeamId);
+        return match;
+    }
+
+    public static MatchEntity buildEmptyNextRoundMatchEntity() {
+        MatchEntity match = new MatchEntity();
+        match.setId(NEXT_MATCH_ID);
+        match.setTournamentId(CS2_TOURNAMENT_ID);
+        match.setBracketId(BRACKET_ID);
+        match.setRoundNumber(2);
+        match.setMatchOrder(1);
+        match.setStatus(MatchStatus.PENDING);
+        match.setCreatedAt(NOW);
+        match.setUpdatedAt(NOW);
+        match.setVersion(0L);
+        return match;
+    }
+
+    public static MatchEntity buildNextRoundMatchEntityWithTeam1(UUID team1Id) {
+        MatchEntity match = buildEmptyNextRoundMatchEntity();
+        match.setTeam1Id(team1Id);
+        return match;
+    }
+
+    public static MatchEntity buildNextRoundMatchEntityWithTeam2(UUID team2Id) {
+        MatchEntity match = buildEmptyNextRoundMatchEntity();
+        match.setTeam2Id(team2Id);
+        return match;
+    }
+
+    public static MatchView buildExpectedCompletedMatchView(UUID winnerTeamId, List<ScoreSubmissionView> submissions) {
+        return new MatchView(MATCH_ID, CS2_TOURNAMENT_ID, 1, 1, TEAM1_ID, TEAM2_ID, winnerTeamId, MatchStatus.COMPLETED, submissions);
+    }
+
+    public static ProblemDetail buildDomainProblemDetail(HttpStatus status, String code, String detail, String instance) {
+        ProblemDetail problem = ProblemDetail.forStatusAndDetail(status, detail);
+        problem.setType(URI.create("https://tournado.ua/errors/" + code));
+        problem.setTitle(status.getReasonPhrase());
+        problem.setInstance(URI.create(instance));
+        problem.setProperty("code", code);
         return problem;
     }
 }

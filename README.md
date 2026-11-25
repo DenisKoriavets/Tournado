@@ -98,6 +98,13 @@ curl -i -X POST http://localhost:8080/api/v1/tournaments \
   cd frontend && npm run lint && npm test && npx tsc --noEmit && npm run build
   ```
 
+#### Рахунки, спори та ШІ-арбітраж (US-27, US-28, US-30..US-34)
+* **ШІ-сервіс:** у `.env` задайте `AI_PROVIDER=groq` і `GROQ_API_KEY=...` (без ключа — `AI_PROVIDER=mock`, детерміновані відповіді). Ядро звертається до нього з токеном `AI_SERVICE_API_TOKEN` (`Authorization: Bearer ...`).
+* **QA-фікстура (міграція `V6__seed_dispute_qa_data.sql`):** турнір `Dispute QA Arena — CS2` (`33333333-0003-4000-8000-000000000001`) із двома півфіналами в статусі `IN_PROGRESS` і порожнім фіналом. Ростери зафіксовані й збігаються з нікнеймами на `ai-service/resources/test_screenshot_1.jpg`.
+  * Організатор: `dispute.organizer@test.tournado.ua`; капітани: `t.captain@…` (QA Terror Squad), `ct.captain@…` (QA Vegayta Five), `owls.captain@…`, `larks.captain@…` (домен `test.tournado.ua`). Вхід — magic link через Mailpit.
+* **Сценарій:** обидва капітани вносять різні рахунки (`POST /api/v1/matches/{id}/scores`) → капітан відкриває спір зі скріншотом (`POST /api/v1/matches/{id}/disputes`) → організатор бачить картку з підказкою ШІ (`GET /api/v1/disputes/{id}`) → затверджує її в один клік або вводить рахунок вручну (`POST /api/v1/disputes/{id}/resolve`). Контракти: [`docs/contracts/api-contracts.md`](docs/contracts/api-contracts.md) (Epic 7–8, §4).
+* **Тести ШІ-сервісу:** `cd ai-service && pip install -e '.[dev]' && pytest` (живий виклик Groq: `LIVE_GROQ_API_KEY=... pytest -m live`).
+
 #### Крок 6. Звіт про проведене ШІ код-рев'ю
 Звіт автоматизованого аудиту архітектури, контрактів, безпеки та стилю коду зафіксовано в:  
 📄 **[`docs/reviews/PR_5_AI_CODE_REVIEW.md`](docs/reviews/PR_5_AI_CODE_REVIEW.md)** (Verdict: `APPROVED WITH COMMENTS`).

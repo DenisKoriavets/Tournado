@@ -73,6 +73,13 @@ Expected load: a few disputes per tournament, one screenshot each.
 **When to revisit**
 - A queue with retries becomes useful only for heavy batch jobs (Post-MVP rules generation, bulk checks).
 
+## Addendum (2026-11-25): implementation decisions
+
+- **Provider:** the hosted provider implemented is **Groq** (OpenAI-compatible chat completions, vision model `qwen/qwen3.8-27b`, `temperature: 0`, `response_format: json_object`) instead of Gemini - free tier, fast, and the team validated it on real CS2 scoreboards. `AI_PROVIDER=groq|mock`; `GROQ_API_KEY`, `GROQ_MODEL` in `.env`. The adapter interface is unchanged, so Gemini/Ollama can still be added.
+- **Rosters never reach the model.** The model only extracts `{sides: [{label, score, players}], confidence}`; mapping sides to bracket slots (ASM-22) and the roster comparison (US-33) are deterministic Python code. This prevents the model from being steered into "seeing" roster nicknames and keeps NFR-22 simple.
+- **Internal auth:** single shared bearer token (`AI_SERVICE_API_TOKEN`) on `POST /api/v1/ai/analyze-dispute`; the service is not exposed publicly in production.
+- **Async in core:** `@Async @TransactionalEventListener(AFTER_COMMIT)`; result stored in `ai_analysis_results` with `FAILED` on any transport error.
+
 ## Related
 
 ADR-0003, ADR-0005, ADR-0009; US-30…US-34; NFR-19, NFR-20, NFR-22; GAP-07, GAP-08, GAP-33; ASM-10, ASM-22.

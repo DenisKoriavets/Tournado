@@ -15,6 +15,7 @@ import com.tournado.core.tournaments.api.dto.TournamentSummaryResponse;
 import com.tournado.core.tournaments.domain.RegistrationEntity;
 import com.tournado.core.tournaments.domain.RegistrationStatus;
 import com.tournado.core.tournaments.domain.RosterSnapshotEntity;
+import com.tournado.core.tournaments.service.RosterEntryView;
 import com.tournado.core.tournaments.domain.TournamentEntity;
 import com.tournado.core.tournaments.domain.TournamentFormat;
 import com.tournado.core.tournaments.domain.TournamentStatus;
@@ -592,5 +593,15 @@ public final class TournamentTestResources {
         problem.setInstance(URI.create(instanceUri));
         problem.setProperty("code", "AUTH_FORBIDDEN");
         return problem;
+    }
+
+    public static List<RosterEntryView> buildExpectedLockedRosterViews() {
+        return List.of(
+                new RosterEntryView(CAPTAIN_USER_ID, "CaptainKMA", "76561198011111111", true),
+                new RosterEntryView(UUID.fromString("11111111-1111-1111-1111-111111111113"), "b1t_junior", "76561198011111113", false),
+                new RosterEntryView(UUID.fromString("11111111-1111-1111-1111-111111111114"), "electro", "76561198011111114", false),
+                new RosterEntryView(UUID.fromString("11111111-1111-1111-1111-111111111115"), "perfecto", "76561198011111115", false),
+                new RosterEntryView(UUID.fromString("11111111-1111-1111-1111-111111111112"), "s1mple_kma", "76561198011111112", false)
+        );
     }
 }
