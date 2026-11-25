@@ -1,6 +1,6 @@
 package com.tournado.core.tournaments.api.dto;
 
-import com.tournado.core.tournaments.domain.Discipline;
+import com.tournado.core.common.domain.Discipline;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Size;

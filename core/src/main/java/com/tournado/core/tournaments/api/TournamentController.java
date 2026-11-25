@@ -1,5 +1,6 @@
 package com.tournado.core.tournaments.api;
 
+import com.tournado.core.common.security.CurrentUserProvider;
 import com.tournado.core.tournaments.api.dto.CreateTournamentRequest;
 import com.tournado.core.tournaments.api.dto.TournamentResponse;
 import com.tournado.core.tournaments.api.dto.TournamentSummaryResponse;
@@ -21,14 +22,17 @@ import org.springframework.web.bind.annotation.RestController;
 public class TournamentController {
 
     private final TournamentService tournamentService;
+    private final CurrentUserProvider currentUserProvider;
 
-    public TournamentController(TournamentService tournamentService) {
+    public TournamentController(TournamentService tournamentService, CurrentUserProvider currentUserProvider) {
         this.tournamentService = tournamentService;
+        this.currentUserProvider = currentUserProvider;
     }
 
     @PostMapping
     public ResponseEntity<TournamentResponse> createTournament(@Valid @RequestBody CreateTournamentRequest request) {
-        TournamentResponse response = tournamentService.createTournament(request);
+        UUID creatorUserId = currentUserProvider.requireCurrentUser().userId();
+        TournamentResponse response = tournamentService.createTournament(request, creatorUserId);
         return ResponseEntity.status(HttpStatus.CREATED).body(response);
     }
 

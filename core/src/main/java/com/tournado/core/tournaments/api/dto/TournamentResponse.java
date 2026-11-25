@@ -1,6 +1,6 @@
 package com.tournado.core.tournaments.api.dto;
 
-import com.tournado.core.tournaments.domain.Discipline;
+import com.tournado.core.common.domain.Discipline;
 import com.tournado.core.tournaments.domain.TournamentEntity;
 import com.tournado.core.tournaments.domain.TournamentFormat;
 import com.tournado.core.tournaments.domain.TournamentStatus;

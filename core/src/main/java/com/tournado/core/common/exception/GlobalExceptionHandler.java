@@ -4,6 +4,8 @@ import jakarta.servlet.http.HttpServletRequest;
 import java.net.URI;
 import java.time.Instant;
 import java.util.List;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ProblemDetail;
@@ -17,6 +19,7 @@ import org.springframework.web.method.annotation.MethodArgumentTypeMismatchExcep
 @RestControllerAdvice
 public class GlobalExceptionHandler {
 
+    private static final Logger LOG = LoggerFactory.getLogger(GlobalExceptionHandler.class);
     private static final String ERROR_BASE_URL = "https://tournado.ua/errors/";
 
     @ExceptionHandler(DomainException.class)
@@ -27,6 +30,9 @@ public class GlobalExceptionHandler {
         problem.setInstance(URI.create(request.getRequestURI()));
         problem.setProperty("code", ex.getCode());
         problem.setProperty("timestamp", Instant.now());
+        if (!ex.getInvalidParams().isEmpty()) {
+            problem.setProperty("invalidParams", ex.getInvalidParams());
+        }
 
         return ResponseEntity.status(ex.getStatus())
                 .contentType(MediaType.APPLICATION_PROBLEM_JSON)
@@ -91,6 +97,7 @@ public class GlobalExceptionHandler {
 
     @ExceptionHandler(Exception.class)
     public ResponseEntity<ProblemDetail> handleGeneralException(Exception ex, HttpServletRequest request) {
+        LOG.error("Unhandled exception for {}", request.getRequestURI(), ex);
         ProblemDetail problem = ProblemDetail.forStatusAndDetail(
                 HttpStatus.INTERNAL_SERVER_ERROR,
                 "An unexpected server error occurred");

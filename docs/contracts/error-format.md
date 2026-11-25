@@ -118,6 +118,7 @@ All client-facing REST endpoints in Tournado return errors using a single, stric
 | `MAP_ALREADY_BANNED` | `409` | Map has already been banned or is not in the tournament map pool. |
 | `BAN_PHASE_COMPLETED` | `409` | All veto steps completed; decider map has already been determined. |
 | `SCORE_ALREADY_SUBMITTED` | `409` | Captain has already submitted a score for this match. |
+| `MATCH_ACCESS_DENIED` | `403` | Caller is not a roster member of either team in this match (US-26: game credentials are restricted to match participants). |
 
 ### 3.5 Disputes & AI Verification (`DISPUTE_*`, `AI_*`)
 

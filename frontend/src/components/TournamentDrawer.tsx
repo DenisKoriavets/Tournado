@@ -1,44 +1,248 @@
-import React, { useEffect, useState } from 'react'
-import type { Tournament } from '../types/tournament'
+import React, { useEffect, useMemo, useState } from 'react'
+import { ApiError } from '../api/http'
+import {
+  getTournamentRegistrations,
+  lockTournamentRosters,
+  registerTeamForTournament,
+  removeTeamRegistration
+} from '../api/registrations'
+import { getMyTeams } from '../api/teams'
+import { useAuth } from '../context/AuthContext'
+import type { TournamentRegistrations } from '../types/registrations'
+import type { TeamSummary } from '../types/teams'
+import type { ProblemDetail, Tournament } from '../types/tournament'
 import { DISCIPLINE_CONFIG, STATUS_CONFIG } from '../types/tournament'
 import { formatDateTime } from '../utils/date'
 import { DisciplineLogo } from './DisciplineLogo'
 import {
+  AlertCircleIcon,
   CheckIcon,
-  CopyIcon,
   CloseIcon,
-  ServerIcon
+  CopyIcon,
+  LockIcon,
+  LogInIcon,
+  ServerIcon,
+  TrashIcon,
+  UsersIcon
 } from './icons/Icons'
 
 interface TournamentDrawerProps {
   tournament: Tournament | null
   isOpen: boolean
   onClose: () => void
+  onRegistrationsChanged?: () => void
 }
 
-type TabKey = 'overview' | 'schedule' | 'server'
+type TabKey = 'overview' | 'schedule' | 'server' | 'participants'
 
 export const TournamentDrawer: React.FC<TournamentDrawerProps> = ({
   tournament,
   isOpen,
-  onClose
+  onClose,
+  onRegistrationsChanged
 }) => {
+  if (!isOpen || !tournament) return null
+  return (
+    <TournamentDrawerContent
+      key={tournament.id}
+      tournament={tournament}
+      onClose={onClose}
+      onRegistrationsChanged={onRegistrationsChanged}
+    />
+  )
+}
+
+interface TournamentDrawerContentProps {
+  tournament: Tournament
+  onClose: () => void
+  onRegistrationsChanged?: () => void
+}
+
+const TournamentDrawerContent: React.FC<TournamentDrawerContentProps> = ({
+  tournament,
+  onClose,
+  onRegistrationsChanged
+}) => {
+  const { user, openAuthModal } = useAuth()
   const [activeTab, setActiveTab] = useState<TabKey>('overview')
   const [copiedLink, setCopiedLink] = useState(false)
   const [copiedConnect, setCopiedConnect] = useState(false)
+
+  const [registrations, setRegistrations] = useState<TournamentRegistrations | null>(null)
+  const [isLoadingRegistrations, setIsLoadingRegistrations] = useState(false)
+  const [registrationsError, setRegistrationsError] = useState<ProblemDetail | null>(null)
+
+  const [myTeams, setMyTeams] = useState<TeamSummary[]>([])
+  const [selectedTeamId, setSelectedTeamId] = useState<string>('')
+  const [isRegistering, setIsRegistering] = useState(false)
+  const [actionError, setActionError] = useState<ProblemDetail | null>(null)
+  const [actionSuccess, setActionSuccess] = useState<string | null>(null)
+
+  const [pendingRemoveTeamId, setPendingRemoveTeamId] = useState<string | null>(null)
+  const [removingTeamId, setRemovingTeamId] = useState<string | null>(null)
+  const [isLockingRosters, setIsLockingRosters] = useState(false)
+  const [nowMs] = useState(() => Date.now())
 
   // Close on Escape key
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'Escape') onClose()
     }
-    if (isOpen) {
-      window.addEventListener('keydown', handleKeyDown)
-    }
+    window.addEventListener('keydown', handleKeyDown)
     return () => window.removeEventListener('keydown', handleKeyDown)
-  }, [isOpen, onClose])
+  }, [onClose])
 
-  if (!isOpen || !tournament) return null
+  // Load registrations (and user teams if logged in) when participants tab is active
+  useEffect(() => {
+    if (activeTab !== 'participants') return
+
+    let cancelled = false
+
+    const loadParticipantsData = async () => {
+      setIsLoadingRegistrations(true)
+      setRegistrationsError(null)
+      try {
+        const regData = await getTournamentRegistrations(tournament.id)
+        if (!cancelled) {
+          setRegistrations(regData)
+        }
+      } catch (err: unknown) {
+        if (!cancelled) {
+          if (err instanceof ApiError) {
+            setRegistrationsError(err.problem)
+          } else {
+            setRegistrationsError({
+              title: 'Помилка завантаження',
+              status: 500,
+              detail: 'Не вдалося завантажити список зареєстрованих команд.'
+            })
+          }
+        }
+      } finally {
+        if (!cancelled) setIsLoadingRegistrations(false)
+      }
+
+      if (user) {
+        try {
+          const teams = await getMyTeams()
+          if (!cancelled) {
+            setMyTeams(teams)
+          }
+        } catch {
+          if (!cancelled) setMyTeams([])
+        }
+      } else if (!cancelled) {
+        setMyTeams([])
+      }
+    }
+
+    void loadParticipantsData()
+
+    return () => {
+      cancelled = true
+    }
+  }, [activeTab, tournament.id, user])
+
+  const eligibleTeams = useMemo(() => {
+    if (!user) return []
+    const registeredIds = new Set(registrations?.teams.map((t) => t.teamId) ?? [])
+    return myTeams.filter(
+      (t) =>
+        t.discipline === tournament.discipline &&
+        t.captainId === user.id &&
+        !registeredIds.has(t.id)
+    )
+  }, [user, myTeams, registrations, tournament.discipline])
+
+  const effectiveSelectedTeamId = useMemo(() => {
+    if (eligibleTeams.some((t) => t.id === selectedTeamId)) {
+      return selectedTeamId
+    }
+    return eligibleTeams[0]?.id ?? ''
+  }, [eligibleTeams, selectedTeamId])
+
+  const refreshParticipants = async () => {
+    const regData = await getTournamentRegistrations(tournament.id)
+    setRegistrations(regData)
+    onRegistrationsChanged?.()
+  }
+
+  const handleRegisterTeam = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!effectiveSelectedTeamId) return
+    setActionError(null)
+    setActionSuccess(null)
+    setIsRegistering(true)
+
+    try {
+      await registerTeamForTournament(tournament.id, effectiveSelectedTeamId)
+      await refreshParticipants()
+      setActionSuccess('Команду успішно зареєстровано на турнір.')
+    } catch (err: unknown) {
+      if (err instanceof ApiError) {
+        setActionError(err.problem)
+      } else {
+        setActionError({
+          title: 'Помилка реєстрації',
+          status: 500,
+          detail: 'Не вдалося зареєструвати команду. Спробуйте пізніше.'
+        })
+      }
+    } finally {
+      setIsRegistering(false)
+    }
+  }
+
+  const handleConfirmRemoveTeam = async (teamId: string) => {
+    setActionError(null)
+    setActionSuccess(null)
+    setRemovingTeamId(teamId)
+
+    try {
+      await removeTeamRegistration(tournament.id, teamId)
+      setPendingRemoveTeamId(null)
+      await refreshParticipants()
+      setActionSuccess('Команду видалено зі списку учасників турніру.')
+    } catch (err: unknown) {
+      if (err instanceof ApiError) {
+        setActionError(err.problem)
+      } else {
+        setActionError({
+          title: 'Помилка видалення',
+          status: 500,
+          detail: 'Не вдалося видалити команду з турніру.'
+        })
+      }
+    } finally {
+      setRemovingTeamId(null)
+    }
+  }
+
+  const handleLockRosters = async () => {
+    setActionError(null)
+    setActionSuccess(null)
+    setIsLockingRosters(true)
+
+    try {
+      const result = await lockTournamentRosters(tournament.id)
+      await refreshParticipants()
+      setActionSuccess(
+        `Склади команд зафіксовано (Roster Lock). Заморожено гравців: ${result.totalSnapshottedPlayers}.`
+      )
+    } catch (err: unknown) {
+      if (err instanceof ApiError) {
+        setActionError(err.problem)
+      } else {
+        setActionError({
+          title: 'Помилка фіксації складів',
+          status: 500,
+          detail: 'Не вдалося виконати Roster Lock.'
+        })
+      }
+    } finally {
+      setIsLockingRosters(false)
+    }
+  }
 
   const discMeta = DISCIPLINE_CONFIG[tournament.discipline] || {
     name: tournament.discipline,
@@ -86,9 +290,19 @@ export const TournamentDrawer: React.FC<TournamentDrawerProps> = ({
     }
   }
 
-  const registeredCount = tournament.registeredTeamsCount ?? 0
-  const slotLimit = tournament.slotLimit || 16
+  const registeredCount = registrations?.registeredCount ?? tournament.registeredTeamsCount ?? 0
+  const slotLimit = registrations?.slotLimit ?? tournament.slotLimit ?? 16
   const fillPercent = Math.min(100, Math.round((registeredCount / slotLimit) * 100))
+
+  const deadlinePassed = new Date(tournament.registrationDeadlineAt).getTime() <= nowMs
+  const isSlotsFull = registeredCount >= slotLimit
+  const canRegister =
+    tournament.status === 'REGISTRATION_OPEN' && !deadlinePassed && !isSlotsFull
+  const isOrganizer = Boolean(
+    user && registrations && registrations.organizerId && user.id === registrations.organizerId
+  )
+  const canModerate =
+    isOrganizer && tournament.status !== 'IN_PROGRESS' && tournament.status !== 'COMPLETED'
 
   const maps =
     tournament.mapPool && tournament.mapPool.length > 0
@@ -114,7 +328,10 @@ export const TournamentDrawer: React.FC<TournamentDrawerProps> = ({
                 <span
                   className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-lg border text-xs font-semibold ${discMeta.theme.badgeBg} ${discMeta.theme.badgeText} ${discMeta.theme.badgeBorder}`}
                 >
-                  <DisciplineLogo discipline={tournament.discipline} className="w-4 h-4 rounded-sm object-cover" />
+                  <DisciplineLogo
+                    discipline={tournament.discipline}
+                    className="w-4 h-4 rounded-sm object-cover"
+                  />
                   <span>{discMeta.shortName}</span>
                 </span>
                 <span className="text-xs font-mono font-medium text-slate-400 bg-slate-900 px-2 py-1 rounded border border-slate-800">
@@ -146,11 +363,11 @@ export const TournamentDrawer: React.FC<TournamentDrawerProps> = ({
             </h1>
 
             {/* Navigation Tabs */}
-            <div className="flex items-center gap-2 mt-5 border-b border-[#1E2536] -mb-6 pb-2">
+            <div className="flex flex-wrap items-center gap-1.5 mt-5 border-b border-[#1E2536] -mb-6 pb-2">
               <button
                 type="button"
                 onClick={() => setActiveTab('overview')}
-                className={`px-3 py-2 text-xs font-semibold rounded-lg transition ${
+                className={`px-3 py-2 text-xs font-semibold rounded-lg transition cursor-pointer ${
                   activeTab === 'overview'
                     ? 'bg-orange-500/10 text-orange-400 border border-orange-500/30'
                     : 'text-slate-400 hover:text-slate-200'
@@ -160,8 +377,19 @@ export const TournamentDrawer: React.FC<TournamentDrawerProps> = ({
               </button>
               <button
                 type="button"
+                onClick={() => setActiveTab('participants')}
+                className={`px-3 py-2 text-xs font-semibold rounded-lg transition cursor-pointer ${
+                  activeTab === 'participants'
+                    ? 'bg-orange-500/10 text-orange-400 border border-orange-500/30'
+                    : 'text-slate-400 hover:text-slate-200'
+                }`}
+              >
+                Учасники та заявка
+              </button>
+              <button
+                type="button"
                 onClick={() => setActiveTab('schedule')}
-                className={`px-3 py-2 text-xs font-semibold rounded-lg transition ${
+                className={`px-3 py-2 text-xs font-semibold rounded-lg transition cursor-pointer ${
                   activeTab === 'schedule'
                     ? 'bg-orange-500/10 text-orange-400 border border-orange-500/30'
                     : 'text-slate-400 hover:text-slate-200'
@@ -172,7 +400,7 @@ export const TournamentDrawer: React.FC<TournamentDrawerProps> = ({
               <button
                 type="button"
                 onClick={() => setActiveTab('server')}
-                className={`px-3 py-2 text-xs font-semibold rounded-lg transition ${
+                className={`px-3 py-2 text-xs font-semibold rounded-lg transition cursor-pointer ${
                   activeTab === 'server'
                     ? 'bg-orange-500/10 text-orange-400 border border-orange-500/30'
                     : 'text-slate-400 hover:text-slate-200'
@@ -197,7 +425,9 @@ export const TournamentDrawer: React.FC<TournamentDrawerProps> = ({
                       {tournament.description}
                     </div>
                   ) : (
-                    <p className="text-xs text-slate-500 italic">Організатор не залишив додаткового опису.</p>
+                    <p className="text-xs text-slate-500 italic">
+                      Організатор не залишив додаткового опису.
+                    </p>
                   )}
                 </div>
 
@@ -208,7 +438,9 @@ export const TournamentDrawer: React.FC<TournamentDrawerProps> = ({
                       <CopyIcon className="w-3.5 h-3.5 text-orange-400" />
                       <span>Публічне посилання для учасників</span>
                     </span>
-                    <span className="text-[11px] text-slate-500 font-mono">Доступно без авторизації</span>
+                    <span className="text-[11px] text-slate-500 font-mono">
+                      Доступно без авторизації
+                    </span>
                   </div>
                   <div className="flex items-center gap-2">
                     <input
@@ -226,7 +458,11 @@ export const TournamentDrawer: React.FC<TournamentDrawerProps> = ({
                           : 'bg-orange-500 hover:bg-orange-400 text-white'
                       }`}
                     >
-                      {copiedLink ? <CheckIcon className="w-3.5 h-3.5" /> : <CopyIcon className="w-3.5 h-3.5" />}
+                      {copiedLink ? (
+                        <CheckIcon className="w-3.5 h-3.5" />
+                      ) : (
+                        <CopyIcon className="w-3.5 h-3.5" />
+                      )}
                       <span>{copiedLink ? 'Скопійовано' : 'Копіювати'}</span>
                     </button>
                   </div>
@@ -235,7 +471,9 @@ export const TournamentDrawer: React.FC<TournamentDrawerProps> = ({
                 {/* Key Metrics Grid */}
                 <div className="grid grid-cols-2 gap-3">
                   <div className="p-3.5 rounded-xl bg-[#0B0E14] border border-[#1E2536]">
-                    <div className="text-[11px] text-slate-500 uppercase font-mono">Формат матчів</div>
+                    <div className="text-[11px] text-slate-500 uppercase font-mono">
+                      Формат матчів
+                    </div>
                     <div className="text-sm font-bold text-white mt-1">
                       {tournament.teamSize === 1
                         ? '1v1 (Соло)'
@@ -244,25 +482,269 @@ export const TournamentDrawer: React.FC<TournamentDrawerProps> = ({
                   </div>
 
                   <div className="p-3.5 rounded-xl bg-[#0B0E14] border border-[#1E2536]">
-                    <div className="text-[11px] text-slate-500 uppercase font-mono">Турнірна сітка</div>
-                    <div className="text-sm font-bold text-white mt-1">
-                      Single Elimination
+                    <div className="text-[11px] text-slate-500 uppercase font-mono">
+                      Турнірна сітка
                     </div>
+                    <div className="text-sm font-bold text-white mt-1">Single Elimination</div>
                   </div>
 
                   <div className="p-3.5 rounded-xl bg-[#0B0E14] border border-[#1E2536]">
-                    <div className="text-[11px] text-slate-500 uppercase font-mono">Слоти команд</div>
+                    <div className="text-[11px] text-slate-500 uppercase font-mono">
+                      Слоти команд
+                    </div>
                     <div className="text-sm font-mono font-bold text-orange-400 mt-1">
                       {registeredCount} / {slotLimit} команд
                     </div>
                   </div>
 
                   <div className="p-3.5 rounded-xl bg-[#0B0E14] border border-[#1E2536]">
-                    <div className="text-[11px] text-slate-500 uppercase font-mono">Правила овертайму</div>
+                    <div className="text-[11px] text-slate-500 uppercase font-mono">
+                      Правила овертайму
+                    </div>
                     <div className="text-sm font-bold text-slate-300 mt-1">
                       {tournament.discipline === 'CS2' ? 'MR3 $10k' : 'Standard Rules'}
                     </div>
                   </div>
+                </div>
+              </div>
+            )}
+
+            {activeTab === 'participants' && (
+              <div className="space-y-5">
+                {/* Summary Header */}
+                <div className="p-4 rounded-xl bg-[#0B0E14] border border-[#1E2536] flex items-center justify-between gap-3">
+                  <div>
+                    <div className="text-[11px] font-mono uppercase text-slate-500">
+                      Заповненість турніру
+                    </div>
+                    <div className="text-sm font-mono font-bold text-white mt-0.5">
+                      {registeredCount} / {slotLimit} команд
+                    </div>
+                  </div>
+
+                  {registrations?.rostersLocked && (
+                    <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-amber-500/10 border border-amber-500/30 text-amber-300 text-xs font-mono font-semibold">
+                      <LockIcon className="w-3.5 h-3.5" />
+                      <span>Склади зафіксовано</span>
+                    </span>
+                  )}
+                </div>
+
+                {/* Action Feedback Banners */}
+                {actionSuccess && (
+                  <div className="p-3.5 rounded-xl bg-emerald-500/10 border border-emerald-500/30 text-emerald-300 text-xs flex items-center gap-2.5 animate-fadeIn">
+                    <CheckIcon className="w-4 h-4 text-emerald-400 shrink-0" />
+                    <span>{actionSuccess}</span>
+                  </div>
+                )}
+
+                {actionError && (
+                  <div className="p-4 rounded-xl bg-rose-500/10 border border-rose-500/30 text-rose-200 text-xs space-y-2 animate-fadeIn">
+                    <div className="flex items-start gap-2.5">
+                      <AlertCircleIcon className="w-4 h-4 text-rose-400 shrink-0 mt-0.5" />
+                      <div className="flex-1">
+                        <div className="flex items-center justify-between gap-2">
+                          <span className="font-bold text-rose-300">{actionError.title}</span>
+                          {actionError.code && (
+                            <span className="font-mono text-[10px] px-2 py-0.5 bg-rose-950/80 rounded border border-rose-800/80 text-rose-300">
+                              {actionError.code}
+                            </span>
+                          )}
+                        </div>
+                        <p className="mt-1 text-slate-300">{actionError.detail}</p>
+                      </div>
+                    </div>
+                    {actionError.invalidParams && actionError.invalidParams.length > 0 && (
+                      <ul className="pl-6 list-disc space-y-1 text-rose-300 font-mono">
+                        {actionError.invalidParams.map((param, idx) => (
+                          <li key={`${param.name}-${idx}`}>
+                            <span className="font-semibold">{param.name}</span>: {param.reason}
+                          </li>
+                        ))}
+                      </ul>
+                    )}
+                  </div>
+                )}
+
+                {/* Captain Registration Section (US-12) */}
+                <div className="p-4 rounded-xl bg-[#0B0E14] border border-[#1E2536] space-y-3">
+                  <h3 className="text-xs font-mono uppercase tracking-wider text-slate-300 flex items-center gap-1.5">
+                    <UsersIcon className="w-4 h-4 text-orange-400" />
+                    <span>Реєстрація команди на турнір</span>
+                  </h3>
+
+                  {!canRegister ? (
+                    <p className="text-xs text-slate-400">
+                      {isSlotsFull
+                        ? 'Усі слоти турніру вже заповнено.'
+                        : 'Прийом заявок на цей турнір закрито або дедлайн минув.'}
+                    </p>
+                  ) : !user ? (
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                      <p className="text-xs text-slate-400">
+                        Авторизуйтесь як капітан команди, щоб подати заявку у дисципліні{' '}
+                        {discMeta.shortName}.
+                      </p>
+                      <button
+                        type="button"
+                        onClick={() =>
+                          openAuthModal('Увійдіть через Steam або пошту, щоб зареєструвати команду.')
+                        }
+                        className="shrink-0 px-4 py-2 rounded-xl bg-orange-500 hover:bg-orange-400 text-white text-xs font-bold transition flex items-center justify-center gap-1.5 cursor-pointer"
+                      >
+                        <LogInIcon className="w-3.5 h-3.5" />
+                        <span>Увійдіть, щоб зареєструвати команду</span>
+                      </button>
+                    </div>
+                  ) : eligibleTeams.length === 0 ? (
+                    <p className="text-xs text-slate-400">
+                      У вас немає доступних команд капітана у дисципліні {discMeta.shortName}.
+                      Створіть команду в розділі «Мої команди».
+                    </p>
+                  ) : (
+                    <form onSubmit={handleRegisterTeam} className="flex flex-col sm:flex-row gap-2.5">
+                      <select
+                        aria-label="Оберіть команду для реєстрації"
+                        value={effectiveSelectedTeamId}
+                        onChange={(e) => setSelectedTeamId(e.target.value)}
+                        className="flex-1 bg-[#121620] border border-[#263147] focus:border-orange-500 rounded-xl px-3.5 py-2 text-xs text-white focus:outline-none"
+                      >
+                        {eligibleTeams.map((team) => (
+                          <option key={team.id} value={team.id}>
+                            {team.name} ({team.memberCount}/{team.maxMembers})
+                          </option>
+                        ))}
+                      </select>
+                      <button
+                        type="submit"
+                        disabled={isRegistering || !effectiveSelectedTeamId}
+                        className="px-4 py-2 rounded-xl bg-orange-500 hover:bg-orange-400 disabled:bg-slate-800 disabled:text-slate-500 text-white text-xs font-bold transition shrink-0 cursor-pointer"
+                      >
+                        {isRegistering ? 'Реєстрація...' : 'Зареєструвати команду'}
+                      </button>
+                    </form>
+                  )}
+                </div>
+
+                {/* Organizer Moderation Toolbar (US-14) */}
+                {isOrganizer && registrations && (
+                  <div className="p-4 rounded-xl bg-[#0B0E14] border border-orange-500/30 flex flex-wrap items-center justify-between gap-3">
+                    <div>
+                      <div className="text-xs font-bold text-white flex items-center gap-1.5">
+                        <LockIcon className="w-3.5 h-3.5 text-orange-400" />
+                        <span>Панель організатора (Roster Lock)</span>
+                      </div>
+                      <p className="text-[11px] text-slate-400 mt-0.5">
+                        Фіксація створює незмінні зліпки ігрових ID усіх учасників турніру.
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={handleLockRosters}
+                      disabled={
+                        isLockingRosters ||
+                        registrations.rostersLocked ||
+                        registrations.teams.length === 0
+                      }
+                      className="px-3.5 py-2 rounded-xl bg-amber-500 hover:bg-amber-400 disabled:bg-slate-800 disabled:text-slate-500 text-slate-950 text-xs font-bold transition flex items-center gap-1.5 cursor-pointer disabled:cursor-not-allowed"
+                    >
+                      <LockIcon className="w-3.5 h-3.5" />
+                      <span>
+                        {registrations.rostersLocked
+                          ? 'Склади вже зафіксовано'
+                          : isLockingRosters
+                          ? 'Фіксація...'
+                          : 'Зафіксувати склади (Roster Lock)'}
+                      </span>
+                    </button>
+                  </div>
+                )}
+
+                {/* Registered Teams List */}
+                <div className="space-y-2.5">
+                  <h3 className="text-xs font-mono uppercase tracking-wider text-slate-400">
+                    Зареєстровані команди
+                  </h3>
+
+                  {isLoadingRegistrations ? (
+                    <div className="space-y-2">
+                      {[1, 2].map((idx) => (
+                        <div
+                          key={idx}
+                          className="h-14 rounded-xl bg-[#0B0E14] border border-[#1E2536] animate-pulse"
+                        />
+                      ))}
+                    </div>
+                  ) : registrationsError ? (
+                    <div className="p-3.5 rounded-xl bg-rose-500/10 border border-rose-500/30 text-xs text-rose-200">
+                      {registrationsError.detail}
+                    </div>
+                  ) : !registrations || registrations.teams.length === 0 ? (
+                    <div className="p-5 rounded-xl bg-[#0B0E14] border border-[#1E2536] text-center text-xs text-slate-500">
+                      Поки що жодна команда не зареєструвалася на цей турнір.
+                    </div>
+                  ) : (
+                    <div className="divide-y divide-[#1E2536] rounded-xl border border-[#1E2536] bg-[#0B0E14] overflow-hidden">
+                      {registrations.teams.map((item) => (
+                        <div
+                          key={item.registrationId}
+                          className="px-4 py-3 flex flex-wrap items-center justify-between gap-3"
+                        >
+                          <div className="min-w-0">
+                            <div className="flex items-center gap-2">
+                              <span className="text-sm font-bold text-white truncate">
+                                {item.teamName}
+                              </span>
+                              {item.rosterLocked && (
+                                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-amber-500/10 border border-amber-500/30 text-amber-300 text-[10px] font-mono">
+                                  <LockIcon className="w-3 h-3" />
+                                  <span>Locked</span>
+                                </span>
+                              )}
+                            </div>
+                            <div className="text-[11px] font-mono text-slate-400 mt-0.5">
+                              {item.memberCount} гравців | {item.status}
+                            </div>
+                          </div>
+
+                          {canModerate && (
+                            <div className="flex items-center gap-2">
+                              {pendingRemoveTeamId === item.teamId ? (
+                                <>
+                                  <button
+                                    type="button"
+                                    disabled={removingTeamId === item.teamId}
+                                    onClick={() => handleConfirmRemoveTeam(item.teamId)}
+                                    className="px-2.5 py-1.5 rounded-lg bg-rose-600 hover:bg-rose-500 text-white text-[11px] font-bold transition cursor-pointer"
+                                  >
+                                    {removingTeamId === item.teamId
+                                      ? 'Видалення...'
+                                      : 'Підтвердити видалення'}
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => setPendingRemoveTeamId(null)}
+                                    className="px-2.5 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 text-[11px] font-semibold transition cursor-pointer"
+                                  >
+                                    Скасувати
+                                  </button>
+                                </>
+                              ) : (
+                                <button
+                                  type="button"
+                                  onClick={() => setPendingRemoveTeamId(item.teamId)}
+                                  className="px-2.5 py-1.5 rounded-lg bg-rose-500/10 hover:bg-rose-500/20 border border-rose-500/30 text-rose-300 text-[11px] font-semibold transition flex items-center gap-1 cursor-pointer"
+                                >
+                                  <TrashIcon className="w-3.5 h-3.5" />
+                                  <span>Видалити</span>
+                                </button>
+                              )}
+                            </div>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  )}
                 </div>
               </div>
             )}
@@ -272,7 +754,9 @@ export const TournamentDrawer: React.FC<TournamentDrawerProps> = ({
                 {/* Slots Fill Bar */}
                 <div className="p-4 bg-[#0B0E14] rounded-xl border border-[#1E2536] space-y-2">
                   <div className="flex items-center justify-between text-xs">
-                    <span className="text-slate-400 font-medium">Заповненість турнірної сітки:</span>
+                    <span className="text-slate-400 font-medium">
+                      Заповненість турнірної сітки:
+                    </span>
                     <span className="font-mono font-semibold text-slate-200">
                       {registeredCount} / {slotLimit} слотів ({fillPercent}%)
                     </span>
@@ -294,7 +778,9 @@ export const TournamentDrawer: React.FC<TournamentDrawerProps> = ({
                     <div className="relative">
                       <div className="absolute -left-[23px] top-1 h-3 w-3 rounded-full bg-slate-600 border-2 border-[#121620]" />
                       <div className="text-xs text-slate-500 font-mono">Етап 1</div>
-                      <div className="text-sm font-bold text-slate-200 mt-0.5">Дедлайн подачі заявок</div>
+                      <div className="text-sm font-bold text-slate-200 mt-0.5">
+                        Дедлайн подачі заявок
+                      </div>
                       <div className="text-xs font-mono text-slate-400 mt-0.5">
                         {formatDateTime(tournament.registrationDeadlineAt)}
                       </div>
@@ -303,7 +789,9 @@ export const TournamentDrawer: React.FC<TournamentDrawerProps> = ({
                     <div className="relative pt-3">
                       <div className="absolute -left-[23px] top-4 h-3 w-3 rounded-full bg-amber-500 border-2 border-[#121620]" />
                       <div className="text-xs text-amber-500 font-mono">Етап 2</div>
-                      <div className="text-sm font-bold text-slate-200 mt-0.5">Відкриття вікна Check-in</div>
+                      <div className="text-sm font-bold text-slate-200 mt-0.5">
+                        Відкриття вікна Check-in
+                      </div>
                       <div className="text-xs font-mono text-amber-300 mt-0.5">
                         {formatDateTime(tournament.checkInOpensAt)}
                       </div>
@@ -312,7 +800,9 @@ export const TournamentDrawer: React.FC<TournamentDrawerProps> = ({
                     <div className="relative pt-3">
                       <div className="absolute -left-[23px] top-4 h-3 w-3 rounded-full bg-orange-500 border-2 border-[#121620]" />
                       <div className="text-xs text-orange-400 font-mono">Етап 3</div>
-                      <div className="text-sm font-bold text-slate-100 mt-0.5">Початок перших матчів</div>
+                      <div className="text-sm font-bold text-slate-100 mt-0.5">
+                        Початок перших матчів
+                      </div>
                       <div className="text-xs font-mono text-orange-400 font-bold mt-0.5">
                         {formatDateTime(tournament.startTimeAt)}
                       </div>
@@ -345,8 +835,14 @@ export const TournamentDrawer: React.FC<TournamentDrawerProps> = ({
                           onClick={handleCopyConnect}
                           className="w-full py-2 rounded-lg bg-slate-800 hover:bg-slate-700 text-xs font-semibold text-slate-200 transition flex items-center justify-center gap-1.5"
                         >
-                          {copiedConnect ? <CheckIcon className="w-3.5 h-3.5 text-emerald-400" /> : <CopyIcon className="w-3.5 h-3.5" />}
-                          <span>{copiedConnect ? 'Команду connect скопійовано!' : 'Копіювати рядок connect'}</span>
+                          {copiedConnect ? (
+                            <CheckIcon className="w-3.5 h-3.5 text-emerald-400" />
+                          ) : (
+                            <CopyIcon className="w-3.5 h-3.5" />
+                          )}
+                          <span>
+                            {copiedConnect ? 'Команду connect скопійовано!' : 'Копіювати рядок connect'}
+                          </span>
                         </button>
                       </div>
                     ) : (
@@ -369,14 +865,17 @@ export const TournamentDrawer: React.FC<TournamentDrawerProps> = ({
                           key={mapName}
                           className="p-3 rounded-lg bg-[#0B0E14] border border-[#1E2536] flex items-center justify-between"
                         >
-                          <span className="font-mono text-xs text-slate-200 font-semibold">{mapName}</span>
+                          <span className="font-mono text-xs text-slate-200 font-semibold">
+                            {mapName}
+                          </span>
                           <span className="text-[10px] font-mono text-slate-500">#{idx + 1}</span>
                         </div>
                       ))}
                     </div>
                   ) : (
                     <div className="p-4 rounded-xl bg-[#0B0E14] border border-[#1E2536] text-xs text-slate-400">
-                      Для дисципліни Chess.com класичний мап-пул відсутній — змагання проходять на дошці 8х8 за регламентом FIDE / Chess.com Rapid.
+                      Для дисципліни Chess.com класичний мап-пул відсутній — змагання проходять на
+                      дошці 8х8 за регламентом FIDE / Chess.com Rapid.
                     </div>
                   )}
                 </div>

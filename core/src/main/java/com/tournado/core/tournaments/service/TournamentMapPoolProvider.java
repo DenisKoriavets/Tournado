@@ -1,6 +1,6 @@
 package com.tournado.core.tournaments.service;
 
-import com.tournado.core.tournaments.domain.Discipline;
+import com.tournado.core.common.domain.Discipline;
 import java.util.List;
 import org.springframework.stereotype.Component;
 

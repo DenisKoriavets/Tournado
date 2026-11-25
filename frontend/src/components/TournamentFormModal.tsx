@@ -29,6 +29,7 @@ export interface TournamentFormModalProps {
   isOpen: boolean
   onClose: () => void
   onSuccess: (tournament: Tournament) => void
+  onUnauthorized?: () => void
 }
 
 const SLOT_OPTIONS: SlotLimit[] = [8, 16, 32]
@@ -36,15 +37,23 @@ const SLOT_OPTIONS: SlotLimit[] = [8, 16, 32]
 export const TournamentFormModal: React.FC<TournamentFormModalProps> = ({
   isOpen,
   onClose,
-  onSuccess
+  onSuccess,
+  onUnauthorized
 }) => {
   if (!isOpen) return null
-  return <TournamentFormContent onClose={onClose} onSuccess={onSuccess} />
+  return (
+    <TournamentFormContent
+      onClose={onClose}
+      onSuccess={onSuccess}
+      onUnauthorized={onUnauthorized}
+    />
+  )
 }
 
 const TournamentFormContent: React.FC<Omit<TournamentFormModalProps, 'isOpen'>> = ({
   onClose,
-  onSuccess
+  onSuccess,
+  onUnauthorized
 }) => {
   const [step, setStep] = useState<1 | 2>(1)
 
@@ -187,6 +196,10 @@ const TournamentFormContent: React.FC<Omit<TournamentFormModalProps, 'isOpen'>> 
       onClose()
     } catch (err: unknown) {
       if (err instanceof ApiError) {
+        if (err.problem.status === 401 && onUnauthorized) {
+          onUnauthorized()
+          return
+        }
         setApiError(err.problem)
         if (err.problem.invalidParams && err.problem.invalidParams.length > 0) {
           const mapped: Record<string, string> = {}
