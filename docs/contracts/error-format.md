@@ -118,6 +118,8 @@ All client-facing REST endpoints in Tournado return errors using a single, stric
 | `MAP_ALREADY_BANNED` | `409` | Map has already been banned or is not in the tournament map pool. |
 | `BAN_PHASE_COMPLETED` | `409` | All veto steps completed; decider map has already been determined. |
 | `SCORE_ALREADY_SUBMITTED` | `409` | Captain has already submitted a score for this match. |
+| `SCORE_TIE_NOT_ALLOWED` | `422` | A tied score was entered (captain score entry or organizer manual ruling); Single Elimination requires a winner (US-27 Sc.3, US-34 Sc.4). |
+| `SCORE_ENTRY_NOT_AVAILABLE` | `422` | Manual score entry is not available for Chess.com matches; the result is imported automatically (US-27 Sc.4). |
 | `MATCH_ACCESS_DENIED` | `403` | Caller is not a roster member of either team in this match (US-26: game credentials are restricted to match participants). |
 
 ### 3.5 Disputes & AI Verification (`DISPUTE_*`, `AI_*`)
@@ -128,7 +130,18 @@ All client-facing REST endpoints in Tournado return errors using a single, stric
 | `DISPUTE_NOT_ALLOWED` | `400` | Dispute can only be opened if score mismatch occurs or opponent failed to report. |
 | `INVALID_SCREENSHOT_FORMAT` | `400` | Uploaded evidence must be PNG, JPEG, or WEBP. |
 | `SCREENSHOT_TOO_LARGE` | `400` | Evidence file exceeds maximum size limit (10 MB). |
-| `AI_SERVICE_UNAVAILABLE` | `502` | Internal AI service is unreachable or returned an error; fallback to manual arbitration. |
+| `AI_SERVICE_UNAVAILABLE` | `502` | Internal AI service is unreachable or returned an error; fallback to manual arbitration. (Internal: the AI call runs in the background, so this is recorded as an analysis `FAILED` status rather than returned to clients.) |
+| `DISPUTE_NOT_FOUND` | `404` | Specified dispute ID does not exist. |
+| `DISPUTE_ALREADY_RESOLVED` | `409` | The dispute is already resolved; the organizer decision is final (US-34 AC6). |
+| `AI_SUGGESTION_UNAVAILABLE` | `422` | One-click approval requested but the AI did not recognise a score (US-34 AC2, Sc.3); enter the score manually. |
+
+### 3.6 Cross-cutting
+
+| Error Code | HTTP Status | Description |
+| :--- | :---: | :--- |
+| `VALIDATION_FAILED` | `400` | Request body/parameter validation failed; details in `invalidParams`. |
+| `CONCURRENT_UPDATE_CONFLICT` | `409` | Optimistic lock (`@Version`) conflict: the aggregate was modified concurrently. Reload and retry. |
+| `INTERNAL_SERVER_ERROR` | `500` | Unhandled server failure. |
 
 ---
 

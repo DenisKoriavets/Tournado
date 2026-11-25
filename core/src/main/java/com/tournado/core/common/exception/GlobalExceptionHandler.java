@@ -11,10 +11,12 @@ import org.springframework.http.MediaType;
 import org.springframework.http.ProblemDetail;
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.converter.HttpMessageNotReadableException;
+import org.springframework.orm.ObjectOptimisticLockingFailureException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
+import org.springframework.web.multipart.MaxUploadSizeExceededException;
 
 @RestControllerAdvice
 public class GlobalExceptionHandler {
@@ -95,6 +97,20 @@ public class GlobalExceptionHandler {
                 .body(problem);
     }
 
+    @ExceptionHandler(MaxUploadSizeExceededException.class)
+    public ResponseEntity<ProblemDetail> handleMaxUploadSizeExceeded(
+            MaxUploadSizeExceededException ex, HttpServletRequest request) {
+        return buildProblem(HttpStatus.BAD_REQUEST, "SCREENSHOT_TOO_LARGE",
+                "Evidence file exceeds maximum size limit (10 MB).", request);
+    }
+
+    @ExceptionHandler(ObjectOptimisticLockingFailureException.class)
+    public ResponseEntity<ProblemDetail> handleOptimisticLockingFailure(
+            ObjectOptimisticLockingFailureException ex, HttpServletRequest request) {
+        return buildProblem(HttpStatus.CONFLICT, "CONCURRENT_UPDATE_CONFLICT",
+                "The resource was modified concurrently by another request. Reload and try again.", request);
+    }
+
     @ExceptionHandler(Exception.class)
     public ResponseEntity<ProblemDetail> handleGeneralException(Exception ex, HttpServletRequest request) {
         LOG.error("Unhandled exception for {}", request.getRequestURI(), ex);
@@ -108,6 +124,20 @@ public class GlobalExceptionHandler {
         problem.setProperty("timestamp", Instant.now());
 
         return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                .contentType(MediaType.APPLICATION_PROBLEM_JSON)
+                .body(problem);
+    }
+
+    private ResponseEntity<ProblemDetail> buildProblem(
+            HttpStatus status, String code, String detail, HttpServletRequest request) {
+        ProblemDetail problem = ProblemDetail.forStatusAndDetail(status, detail);
+        problem.setType(URI.create(ERROR_BASE_URL + code));
+        problem.setTitle(status.getReasonPhrase());
+        problem.setInstance(URI.create(request.getRequestURI()));
+        problem.setProperty("code", code);
+        problem.setProperty("timestamp", Instant.now());
+
+        return ResponseEntity.status(status)
                 .contentType(MediaType.APPLICATION_PROBLEM_JSON)
                 .body(problem);
     }

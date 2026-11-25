@@ -383,8 +383,9 @@
 
 #### 7.1 `POST /api/v1/matches/{matchId}/scores`
 * **Stories:** US-27, US-28
-* **Description:** Captain enters match score. If both match, progresses winner.
-* **Access:** Captain only
+* **Description:** Captain enters the final score. Fields are bound to bracket slots (`team1Score` = score of match `team1`, BR-40). The first submission is stored and the captain waits for the opponent; the opponent's submission is never revealed (BR-41). When both submissions are identical the match closes (`COMPLETED`), the winner is seated in the next round (odd `matchOrder` → `team1` slot, even → `team2` slot) and, if it was the final, the tournament becomes `COMPLETED` (BR-42, BR-51). Different submissions keep the match open; a dispute can then be opened (BR-43).
+* **Access:** Captain of either team only
+* **Preconditions:** Match status `IN_PROGRESS`; discipline CS2 or Brawl Stars.
 * **Request Body:**
   ```json
   {
@@ -392,6 +393,7 @@
     "team2Score": 9
   }
   ```
+  Both fields required, integers `0..999`, must differ (no draws in Single Elimination).
 * **Response `200 OK`:**
   ```json
   {
@@ -401,6 +403,8 @@
     "scoresMatched": true
   }
   ```
+  First submission: `{"matchStatus": "IN_PROGRESS", "winnerTeamId": null, "bothSubmitted": false, "scoresMatched": false}` («Очікується підтвердження суперником»). Mismatch: `bothSubmitted: true, scoresMatched: false`.
+* **Errors:** `400` (`VALIDATION_FAILED`), `403` (`ONLY_CAPTAIN_ALLOWED`), `404` (`MATCH_NOT_FOUND`), `409` (`MATCH_NOT_IN_PROGRESS`, `SCORE_ALREADY_SUBMITTED`), `422` (`SCORE_TIE_NOT_ALLOWED`, `SCORE_ENTRY_NOT_AVAILABLE` for Chess.com).
 
 #### 7.2 `POST /api/v1/matches/{matchId}/chess/sync`
 * **Stories:** US-29
@@ -420,13 +424,15 @@
 
 ### Epic 8: Disputes & AI Arbitration (US-30 – US-34)
 
+> The AI verdict is **advisory only** (NFR-20, BR-48): nothing changes a match or the bracket except the organizer ruling in 8.4.
+
 #### 8.1 `POST /api/v1/matches/{matchId}/disputes`
 * **Stories:** US-30
-* **Description:** Captain opens dispute and uploads scoreboard screenshot evidence.
-* **Access:** Captain only
+* **Description:** Captain opens a dispute and uploads scoreboard screenshot evidence. Allowed only for CS2 / Brawl Stars matches that are `IN_PROGRESS` and have at least one captain score submission (scores mismatch or the opponent has not confirmed, BR-45). The match becomes `DISPUTED` and bracket progression halts (BR-46). The AI analysis runs asynchronously after the dispute is committed (ADR-0006) — the response never waits for the AI.
+* **Access:** Captain of either team only
 * **Request:** `multipart/form-data`
-  * `screenshot`: binary image file (PNG/JPG, max 10MB)
-* **Response `201 Created`:**
+  * `screenshot`: binary image file (PNG, JPEG or WEBP — detected from file signature, max 10 MB)
+* **Response `201 Created`** (`Location: /api/v1/disputes/{disputeId}`):
   ```json
   {
     "disputeId": "d01e2345-6789-abcd-ef01-23456789abcd",
@@ -436,48 +442,118 @@
     "aiAnalysisStatus": "PENDING"
   }
   ```
-* **Errors:** `400 Bad Request` (`INVALID_SCREENSHOT_FORMAT`), `409 Conflict` (`DISPUTE_ALREADY_OPEN`).
+* **Errors:** `400 Bad Request` (`INVALID_SCREENSHOT_FORMAT` — also when the file is missing, `SCREENSHOT_TOO_LARGE`, `DISPUTE_NOT_ALLOWED`), `403` (`ONLY_CAPTAIN_ALLOWED`), `404` (`MATCH_NOT_FOUND`), `409 Conflict` (`DISPUTE_ALREADY_OPEN`).
 
 #### 8.2 `GET /api/v1/tournaments/{tournamentId}/disputes`
 * **Stories:** US-31
-* **Description:** Organizer dashboard list of all active disputes.
-* **Access:** Organizer only
-* **Response `200 OK`:** List of open disputes with match info and AI summary.
+* **Description:** Organizer dashboard list of the tournament's disputes (newest first) with match info and AI summary. `openDisputesCount` drives the dashboard counter/banner; resolved disputes stay in the list as «опрацьовано».
+* **Access:** Organizer of this tournament only (authentication required even though other `GET /tournaments/**` endpoints are public)
+* **Response `200 OK`:**
+  ```json
+  {
+    "tournamentId": "33333333-0003-4000-8000-000000000001",
+    "openDisputesCount": 1,
+    "disputes": [
+      {
+        "disputeId": "d01e2345-6789-abcd-ef01-23456789abcd",
+        "matchId": "c01d2345-6789-abcd-ef01-23456789abcd",
+        "roundNumber": 1,
+        "matchOrder": 1,
+        "status": "OPEN",
+        "team1": { "id": "7a30368b-...", "name": "QA Terror Squad" },
+        "team2": { "id": "9c40479c-...", "name": "QA Vegayta Five" },
+        "openedByTeamId": "7a30368b-...",
+        "aiAnalysisStatus": "SUCCESS",
+        "aiRecognizedScoreTeam1": 0,
+        "aiRecognizedScoreTeam2": 1,
+        "aiConfidence": 0.96,
+        "allRosterNicknamesFound": true,
+        "createdAt": "2026-11-25T12:00:00Z",
+        "resolvedAt": null
+      }
+    ]
+  }
+  ```
+* **Errors:** `401` (`AUTH_UNAUTHORIZED`), `403` (`AUTH_FORBIDDEN`), `404` (`TOURNAMENT_NOT_FOUND`).
 
 #### 8.3 `GET /api/v1/disputes/{disputeId}`
 * **Stories:** US-32, US-33
-* **Description:** Organizer views detailed dispute card with AI Vision verdict and roster check.
-* **Access:** Organizer only
+* **Description:** Organizer views the detailed dispute card: both captains' submitted scores, the AI hint («Підказка ШІ») with confidence, and the nickname check against the rosters locked at Roster Lock (BR-49).
+  * `aiAnalysisStatus`: `PENDING` (analysis still running, `aiAnalysis` is `null`) · `SUCCESS` · `UNRECOGNIZED` («Рахунок не розпізнано», scores `null`) · `FAILED` (AI service unavailable — treated as not recognised, NFR-19).
+  * `canApproveAiSuggestion` is `true` only when the dispute is open and the AI recognised a non-tied score (US-34 AC2).
+  * `nicknameChecks[].sideTeamId` — team on whose scoreboard side the nickname appeared; `inRoster` — the nickname matches that team's locked roster; `matchedTeamId` — team whose roster contains it (if any). `inRoster: false` ⇒ «Не знайдено в ростері» / possible ringer. Empty `detectedNicknames` ⇒ «Нікнейми не розпізнано».
+* **Access:** Organizer of this tournament only
 * **Response `200 OK`:**
   ```json
   {
     "disputeId": "d01e2345-6789-abcd-ef01-23456789abcd",
     "matchId": "c01d2345-6789-abcd-ef01-23456789abcd",
+    "tournamentId": "33333333-0003-4000-8000-000000000001",
     "status": "OPEN",
     "screenshotUrl": "/api/v1/disputes/d01e2345-.../screenshot",
+    "roundNumber": 1,
+    "matchOrder": 1,
+    "team1": { "id": "7a30368b-...", "name": "QA Terror Squad" },
+    "team2": { "id": "9c40479c-...", "name": "QA Vegayta Five" },
+    "openedByTeamId": "7a30368b-...",
+    "submittedScores": [
+      { "teamId": "7a30368b-...", "team1Score": 13, "team2Score": 9, "submittedAt": "2026-11-25T11:50:00Z" },
+      { "teamId": "9c40479c-...", "team1Score": 9, "team2Score": 13, "submittedAt": "2026-11-25T11:52:00Z" }
+    ],
+    "aiAnalysisStatus": "SUCCESS",
     "aiAnalysis": {
       "status": "SUCCESS",
-      "recognizedScoreTeam1": 13,
-      "recognizedScoreTeam2": 9,
-      "confidence": 0.985,
+      "recognizedScoreTeam1": 0,
+      "recognizedScoreTeam2": 1,
+      "confidence": 0.96,
       "allRosterNicknamesFound": true,
-      "detectedNicknames": ["CyberHawk", "s1mple_kma", "b1t_junior", "electro", "perfecto"]
-    }
+      "detectedNicknames": ["BOT Mayer", "BOT Bassey", "Vegayta"],
+      "nicknameChecks": [
+        { "nickname": "BOT Mayer", "sideTeamId": "7a30368b-...", "inRoster": true, "matchedTeamId": "7a30368b-...", "matchedRosterName": "BOT Mayer" }
+      ],
+      "analyzedAt": "2026-11-25T12:00:02Z"
+    },
+    "canApproveAiSuggestion": true,
+    "resolution": null,
+    "createdAt": "2026-11-25T12:00:00Z"
   }
   ```
+  When resolved, `resolution` = `{ "decision", "winnerTeamId", "team1Score", "team2Score", "resolutionNotes", "resolvedByUserId", "resolvedAt" }`.
+* **Errors:** `401`, `403` (`AUTH_FORBIDDEN`), `404` (`DISPUTE_NOT_FOUND`).
 
 #### 8.4 `POST /api/v1/disputes/{disputeId}/resolve`
 * **Stories:** US-34
-* **Description:** Organizer makes final ruling (approving AI or setting manual score).
-* **Access:** Organizer only
+* **Description:** Organizer makes the final ruling: approve the AI hint in one click (`AI_SUGGESTION`) or enter the final score manually (`MANUAL_SCORE`, validated like US-27: non-negative integers, no tie). The match closes (`COMPLETED`), the «Спір» status is removed, the winner (higher score) advances in the bracket and, for the final, the tournament completes. The decision is final (BR-50).
+* **Contract change (2026-11-25):** the request previously carried only `winnerTeamId`; US-34 requires the final *score* ("матч закривається з рахунком 13:9") and a one-click AI approval, so the body now carries `decision` + scores, and the winner is derived from the score.
+* **Access:** Organizer of this tournament only
 * **Request Body:**
   ```json
+  { "decision": "AI_SUGGESTION", "resolutionNotes": "Confirmed via official CS2 scoreboard." }
+  ```
+  ```json
+  { "decision": "MANUAL_SCORE", "team1Score": 9, "team2Score": 13, "resolutionNotes": "Replay checked." }
+  ```
+* **Response `200 OK`:**
+  ```json
   {
-    "winnerTeamId": "7a30368b-59b1-4f18-bb59-8395f13d8d64",
-    "resolutionNotes": "Confirmed via official CS2 scoreboard."
+    "disputeId": "d01e2345-6789-abcd-ef01-23456789abcd",
+    "status": "RESOLVED",
+    "matchId": "c01d2345-6789-abcd-ef01-23456789abcd",
+    "matchStatus": "COMPLETED",
+    "winnerTeamId": "9c40479c-59b1-4f18-bb59-8395f13d8d65",
+    "team1Score": 0,
+    "team2Score": 1,
+    "decision": "AI_SUGGESTION",
+    "resolvedAt": "2026-11-25T12:05:00Z"
   }
   ```
-* **Response `200 OK`:** Match closed, winner progressed in bracket.
+* **Errors:** `400` (`VALIDATION_FAILED` — missing `decision`, or missing scores for `MANUAL_SCORE`), `403` (`AUTH_FORBIDDEN`), `404` (`DISPUTE_NOT_FOUND`), `409` (`DISPUTE_ALREADY_RESOLVED`), `422` (`AI_SUGGESTION_UNAVAILABLE`, `SCORE_TIE_NOT_ALLOWED`).
+
+#### 8.5 `GET /api/v1/disputes/{disputeId}/screenshot`
+* **Stories:** US-32 AC2 (original screenshot shown next to the AI hint)
+* **Description:** Streams the stored evidence image (`Content-Type` = stored MIME type, `Cache-Control: no-store, private`, `X-Content-Type-Options: nosniff`).
+* **Access:** Organizer of the tournament or roster members of either team of the match
+* **Errors:** `403` (`AUTH_FORBIDDEN`), `404` (`DISPUTE_NOT_FOUND`).
 
 ---
 
@@ -520,7 +596,7 @@ As defined in **ADR-0005**, WebSockets use STOMP over SockJS with a server-side 
 | :--- | :--- | :--- |
 | `/topic/matches/{matchId}/room` | Broadcasts live pre-match events (Ready Check, Map Veto bans, Game Credentials reveal). | `MatchRoomEventDTO` |
 | `/topic/tournaments/{tournamentId}/bracket` | Broadcasts bracket node updates when matches start or complete. | `BracketUpdateEventDTO` |
-| `/topic/tournaments/{tournamentId}/dashboard` | Real-time organizer dashboard counter updates (disputes, active matches). | `DashboardEventDTO` |
+| `/topic/tournaments/{tournamentId}/dashboard` | Real-time organizer dashboard counter updates (disputes, active matches). | `DashboardEventDTO` — `{ "type": "DISPUTE_OPENED" \| "DISPUTE_AI_ANALYZED" \| "DISPUTE_RESOLVED", "tournamentId", "matchId", "disputeId", "openDisputesCount", "occurredAt" }`, sent after commit (US-31) |
 | `/user/queue/errors` | Delivers individual client error messages (e.g. invalid ban attempt). | `ProblemDetailDTO` |
 
 ### 3.2 Application Destinations (Client ➔ Server Actions)
@@ -541,22 +617,23 @@ As defined in **ADR-0005**, WebSockets use STOMP over SockJS with a server-side 
 
 ## 4. Internal AI Service Contract (Core ⟷ Python FastAPI)
 
-Defined in **ADR-0006**: Spring Boot calls the Python service synchronously via HTTP.
+Defined in **ADR-0006**: Spring Boot calls the Python service synchronously via HTTP (from a background thread, read timeout 30 s).
 
 * **Method:** `POST`
 * **URL:** `http://ai-service:8000/api/v1/ai/analyze-dispute`
 * **Content-Type:** `multipart/form-data`
+* **Auth:** `Authorization: Bearer <AI_SERVICE_API_TOKEN>` (single shared secret; the service is internal-only). `GET /api/v1/ai/health` is unauthenticated.
 
 ### 4.1 Request
 
 | Form Field | Type | Description |
 | :--- | :--- | :--- |
-| `screenshot` | Binary (Image) | Uploaded screenshot file from captain. |
+| `screenshot` | Binary (Image) | Uploaded screenshot file from captain (PNG / JPEG / WEBP). |
 | `discipline` | String | `CS2` or `BRAWL_STARS`. |
-| `team1_name` | String | Name of Team 1. |
-| `team2_name` | String | Name of Team 2. |
-| `team1_roster`| String (JSON) | Array of expected display names and game handles for Team 1. |
-| `team2_roster`| String (JSON) | Array of expected display names and game handles for Team 2. |
+| `team1_name` | String | Name of Team 1 (bracket slot 1). |
+| `team2_name` | String | Name of Team 2 (bracket slot 2). |
+| `team1_roster`| String (JSON) | Locked roster of Team 1: `[{"displayName": "BOT Mayer", "gameIdentifier": "76561190000000001"}]` (plain string arrays are also accepted). |
+| `team2_roster`| String (JSON) | Locked roster of Team 2, same shape. |
 
 ### 4.2 Response `200 OK`
 
@@ -569,9 +646,19 @@ Defined in **ADR-0006**: Spring Boot calls the Python service synchronously via 
   },
   "confidence": 0.985,
   "nicknamesDetected": ["CyberHawk", "s1mple_kma", "b1t_junior", "electro", "perfecto"],
+  "nicknameChecks": [
+    { "nickname": "CyberHawk", "side": "TEAM1", "inRoster": true, "matchedTeam": "TEAM1", "matchedRosterName": "CyberHawk" }
+  ],
   "allRosterNicknamesFound": true,
+  "reason": null,
+  "provider": "groq",
   "processingTimeMs": 1420
 }
 ```
 
-*Note: If image is blurry or cannot be parsed, AI returns `"status": "UNRECOGNIZED"`. Core handles this gracefully without throwing an exception.*
+* `recognizedScore` is per **bracket slot**, not per scoreboard position: the service maps the two scoreboard sides to `team1`/`team2` by matching the detected nicknames against the rosters (case/punctuation-insensitive, OCR-tolerant), falling back to team names shown as side labels (ASM-22). The vision model itself never sees the rosters.
+* `nicknameChecks[].side` / `matchedTeam` are `"TEAM1"`, `"TEAM2"` or `null`. `allRosterNicknamesFound` = at least one nickname was read and every detected nickname matches the roster of the team on whose side it appeared.
+* `reason` (when `UNRECOGNIZED`): `INVALID_IMAGE`, `EMPTY_IMAGE`, `IMAGE_TOO_LARGE`, `UNSUPPORTED_IMAGE_FORMAT`, `PROVIDER_NOT_CONFIGURED`, `PROVIDER_UNAVAILABLE`, `PROVIDER_RATE_LIMITED` (after one retry), `PROVIDER_ERROR`, `INVALID_MODEL_OUTPUT`, `SCOREBOARD_NOT_READABLE`, `TEAM_SIDES_UNDETERMINED`, `SCORE_NOT_READABLE`, `LOW_CONFIDENCE` (`< AI_MIN_CONFIDENCE`, default 0.5).
+* `401` when the bearer token is missing/wrong; `422` when a roster field is not a JSON array.
+
+*Note: If image is blurry or cannot be parsed, AI returns `"status": "UNRECOGNIZED"` with HTTP 200 and `recognizedScore: null`. Core handles this gracefully without throwing an exception; a network/HTTP failure is stored by the core as `FAILED`.*

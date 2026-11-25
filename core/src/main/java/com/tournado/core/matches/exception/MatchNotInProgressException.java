@@ -6,10 +6,10 @@ import org.springframework.http.HttpStatus;
 public class MatchNotInProgressException extends DomainException {
 
     public MatchNotInProgressException() {
-        super(
-                HttpStatus.CONFLICT,
-                "MATCH_NOT_IN_PROGRESS",
-                "Game credentials are not available until the pre-match phase (ready check / map veto) is complete."
-        );
+        this("Game credentials are not available until the pre-match phase (ready check / map veto) is complete.");
+    }
+
+    public MatchNotInProgressException(String message) {
+        super(HttpStatus.CONFLICT, "MATCH_NOT_IN_PROGRESS", message);
     }
 }
