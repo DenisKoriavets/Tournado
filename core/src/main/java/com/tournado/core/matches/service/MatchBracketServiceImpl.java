@@ -6,6 +6,7 @@ import com.tournado.core.matches.repository.MatchRepository;
 import java.time.Clock;
 import java.time.Instant;
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -35,17 +36,15 @@ public class MatchBracketServiceImpl implements MatchBracketService {
     @Transactional(readOnly = true)
     public List<BracketMatchView> findMatchesByTournamentId(UUID tournamentId) {
         return matchRepository.findByTournamentIdOrderByRoundNumberAscMatchOrderAsc(tournamentId).stream()
-                .map(entity -> new BracketMatchView(
-                        entity.getId(),
-                        entity.getRoundNumber(),
-                        entity.getMatchOrder(),
-                        entity.getTeam1Id(),
-                        entity.getTeam2Id(),
-                        entity.getWinnerTeamId(),
-                        entity.getStatus(),
-                        entity.isBye()
-                ))
+                .map(this::toBracketMatchView)
                 .toList();
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public Optional<BracketMatchView> findMatchById(UUID matchId) {
+        return matchRepository.findById(matchId)
+                .map(this::toBracketMatchView);
     }
 
     @Override
@@ -78,6 +77,19 @@ public class MatchBracketServiceImpl implements MatchBracketService {
         }
 
         matchRepository.save(targetMatch);
+    }
+
+    private BracketMatchView toBracketMatchView(MatchEntity entity) {
+        return new BracketMatchView(
+                entity.getId(),
+                entity.getRoundNumber(),
+                entity.getMatchOrder(),
+                entity.getTeam1Id(),
+                entity.getTeam2Id(),
+                entity.getWinnerTeamId(),
+                entity.getStatus(),
+                entity.isBye()
+        );
     }
 
     private MatchEntity toEntity(BracketMatchSeed seed, Instant now) {

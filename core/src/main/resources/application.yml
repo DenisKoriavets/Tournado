@@ -17,15 +17,26 @@ spring:
   flyway:
     enabled: true
     locations: classpath:db/migration
+  servlet:
+    multipart:
+      # Slightly above the 10 MB business limit so oversized evidence gets SCREENSHOT_TOO_LARGE from the service.
+      max-file-size: 12MB
+      max-request-size: 13MB
   mail:
     host: ${SPRING_MAIL_HOST:localhost}
     port: ${SPRING_MAIL_PORT:1025}
 
 server:
   port: ${CORE_PORT:8080}
+  tomcat:
+    max-swallow-size: 64MB
 
 tournado:
   ai-service-url: ${AI_SERVICE_URL:http://localhost:8000}
+  ai:
+    api-token: ${AI_SERVICE_API_TOKEN:}
+    timeout-seconds: ${AI_SERVICE_TIMEOUT_SECONDS:30}
+  uploads-dir: ${UPLOADS_DIR:./data/uploads}
   jwt:
     secret: ${JWT_SECRET:tournado-local-dev-secret-key-min-32-chars-2026}
     expiration-seconds: 604800

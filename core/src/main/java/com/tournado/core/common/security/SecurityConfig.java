@@ -38,6 +38,7 @@ public class SecurityConfig {
                         .requestMatchers(HttpMethod.POST, "/api/v1/auth/email/request-link", "/api/v1/auth/logout")
                         .permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/v1/auth/email/verify").permitAll()
+                        .requestMatchers(HttpMethod.GET, "/api/v1/tournaments/*/disputes").authenticated()
                         .requestMatchers(HttpMethod.GET, "/api/v1/tournaments/**").permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/v1/teams/my").authenticated()
                         .requestMatchers(HttpMethod.GET, "/api/v1/teams/*", "/api/v1/teams/invites/*").permitAll()

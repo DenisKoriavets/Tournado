@@ -1,6 +1,6 @@
 [project]
 name = "tournado-ai-service"
-version = "0.1.0"
+version = "0.2.0"
 description = "Tournado Multimodal AI & OCR Arbitration Service"
 requires-python = ">=3.12"
 dependencies = [
@@ -8,11 +8,28 @@ dependencies = [
     "uvicorn[standard]>=0.30.0",
     "python-multipart>=0.0.9",
     "pydantic>=2.9.0",
-    "pillow>=10.4.0"
+    "pillow>=10.4.0",
+    "httpx>=0.27.0"
 ]
 
 [project.optional-dependencies]
 dev = [
     "pytest>=8.3.0",
-    "httpx>=0.27.0"
+    "pytest-asyncio>=0.24.0"
 ]
+
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+include = ["app*"]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+asyncio_default_fixture_loop_scope = "function"
+testpaths = ["tests"]
+markers = [
+    "live: calls the real Groq API (requires GROQ_API_KEY); run with -m live",
+]
+addopts = "-m 'not live'"
