@@ -31,4 +31,10 @@ public interface MatchRepository extends JpaRepository<MatchEntity, UUID> {
             @Param("matchOrder") int matchOrder);
 
     List<MatchEntity> findByTournamentIdOrderByRoundNumberAscMatchOrderAsc(UUID tournamentId);
+
+    Optional<MatchEntity> findByTournamentIdAndRoundNumberAndMatchOrder(
+            UUID tournamentId,
+            int roundNumber,
+            int matchOrder
+    );
 }
