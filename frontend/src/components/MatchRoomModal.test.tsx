@@ -179,4 +179,77 @@ describe('MatchRoomModal component', () => {
     })
     expect(screen.queryByRole('button', { name: /я готовий/i })).not.toBeInTheDocument()
   })
+
+  it('US-27 checklist 1: the captain sees the score form once the CS2 match is in progress', async () => {
+    vi.spyOn(matchesApi, 'getMatchRoom').mockResolvedValue(inProgressRoom)
+    vi.spyOn(teamsApi, 'getTeamById').mockImplementation((teamId: string) =>
+      Promise.resolve(teamId === 'team-1' ? team1Details : team2Details)
+    )
+
+    renderModal('match-1')
+
+    expect(await screen.findByRole('form', { name: 'Внесення рахунку матчу' })).toBeInTheDocument()
+  })
+
+  it('US-27 sc.4: a Chess.com match never shows the score form', async () => {
+    const chessRoom: MatchRoom = {
+      ...inProgressRoom,
+      discipline: 'CHESS',
+      remainingMaps: [],
+      decidedMap: null,
+      credentials: { discipline: 'CHESS', cs2ConnectString: null, brawlStarsCode: null, chessGameUrl: 'https://www.chess.com/play', decidedMap: null }
+    }
+    vi.spyOn(matchesApi, 'getMatchRoom').mockResolvedValue(chessRoom)
+    vi.spyOn(teamsApi, 'getTeamById').mockImplementation((teamId: string) =>
+      Promise.resolve(teamId === 'team-1' ? team1Details : team2Details)
+    )
+
+    renderModal('match-1')
+
+    expect(await screen.findByText('Для шахових матчів рахунок вручну не вводиться.')).toBeInTheDocument()
+    expect(screen.queryByRole('form', { name: 'Внесення рахунку матчу' })).not.toBeInTheDocument()
+  })
+
+  it('US-27 checklist 1: a user who is not a captain of either team gets no score form', async () => {
+    vi.spyOn(matchesApi, 'getMatchRoom').mockResolvedValue(inProgressRoom)
+    vi.spyOn(teamsApi, 'getTeamById').mockImplementation((teamId: string) =>
+      Promise.resolve(teamId === 'team-1' ? team1Details : team2Details)
+    )
+
+    renderModal('match-1', { ...captain1User, id: 'outsider-user' })
+
+    await waitFor(() => {
+      expect(screen.getByText('connect 194.44.12.5:27015; password kma_cup')).toBeInTheDocument()
+    })
+    expect(screen.queryByRole('form', { name: 'Внесення рахунку матчу' })).not.toBeInTheDocument()
+  })
+
+  it('US-30 checklist 5: a DISPUTED match shows the «Спір» status, halts progression and hides score entry', async () => {
+    vi.spyOn(matchesApi, 'getMatchRoom').mockResolvedValue({ ...inProgressRoom, status: 'DISPUTED' })
+    vi.spyOn(teamsApi, 'getTeamById').mockImplementation((teamId: string) =>
+      Promise.resolve(teamId === 'team-1' ? team1Details : team2Details)
+    )
+
+    renderModal('match-1')
+
+    expect(await screen.findByText(/У матчі відкрито спір/)).toBeInTheDocument()
+    expect(screen.getByText('Спір')).toBeInTheDocument()
+    expect(screen.queryByRole('form', { name: 'Внесення рахунку матчу' })).not.toBeInTheDocument()
+  })
+
+  it('keeps the last loaded room on screen when a background poll fails', async () => {
+    const getRoom = vi.spyOn(matchesApi, 'getMatchRoom').mockResolvedValueOnce(pendingRoom)
+    vi.spyOn(teamsApi, 'getTeamById').mockImplementation((teamId: string) =>
+      Promise.resolve(teamId === 'team-1' ? team1Details : team2Details)
+    )
+    vi.spyOn(matchesApi, 'markMatchReady').mockResolvedValue({ isReady: true })
+    getRoom.mockRejectedValue(new Error('network down'))
+
+    renderModal('match-1')
+    fireEvent.click(await screen.findByRole('button', { name: /я готовий/i }))
+
+    await waitFor(() => expect(getRoom).toHaveBeenCalledTimes(2))
+    expect(screen.getByText('CyberHawk')).toBeInTheDocument()
+    expect(screen.queryByText('Match Room недоступна')).not.toBeInTheDocument()
+  })
 })

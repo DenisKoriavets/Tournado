@@ -1,5 +1,6 @@
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import * as disputesApi from '../api/disputes'
 import * as registrationsApi from '../api/registrations'
 import * as teamsApi from '../api/teams'
 import { AuthContext, type AuthContextValue } from '../context/AuthContext'
@@ -114,7 +115,7 @@ describe('TournamentDrawer component', () => {
     expect(openAuthModalMock).toHaveBeenCalledTimes(1)
   })
 
-  it('allows captain to register eligible team and updates registrations', async () => {
+  it('US-12 sc.1: a captain registers an eligible team and the registrations list updates', async () => {
     const captainTeam: TeamSummary = {
       id: 'team-captain-cs2',
       name: 'KMA Legends',
@@ -144,6 +145,7 @@ describe('TournamentDrawer component', () => {
     }
 
     vi.spyOn(registrationsApi, 'getTournamentRegistrations')
+      .mockResolvedValueOnce(baseRegistrations) // organizer probe when the drawer opens
       .mockResolvedValueOnce(baseRegistrations)
       .mockResolvedValueOnce(updatedRegistrations)
     vi.spyOn(teamsApi, 'getMyTeams').mockResolvedValueOnce([captainTeam])
@@ -199,7 +201,7 @@ describe('TournamentDrawer component', () => {
     })
   })
 
-  it('allows organizer to remove team with two-step confirmation and lock rosters', async () => {
+  it('US-13 sc.1 / US-14: the organizer removes a team after confirmation and locks rosters', async () => {
     const afterRemoveRegistrations: TournamentRegistrations = {
       ...baseRegistrations,
       registeredCount: 0,
@@ -213,10 +215,16 @@ describe('TournamentDrawer component', () => {
     }
 
     vi.spyOn(registrationsApi, 'getTournamentRegistrations')
+      .mockResolvedValueOnce(baseRegistrations) // organizer probe when the drawer opens
       .mockResolvedValueOnce(baseRegistrations)
       .mockResolvedValueOnce(lockedRegistrations)
       .mockResolvedValueOnce(afterRemoveRegistrations)
     vi.spyOn(teamsApi, 'getMyTeams').mockResolvedValueOnce([])
+    vi.spyOn(disputesApi, 'getTournamentDisputes').mockResolvedValue({
+      tournamentId: baseRegistrations.tournamentId,
+      openDisputesCount: 0,
+      disputes: []
+    })
     vi.spyOn(registrationsApi, 'lockTournamentRosters').mockResolvedValueOnce({
       status: 'LOCKED',
       totalSnapshottedPlayers: 5
@@ -277,5 +285,67 @@ describe('TournamentDrawer component', () => {
       )
       expect(onChanged).toHaveBeenCalledTimes(2)
     })
+  })
+
+  const renderAs = (user: UserProfile | null, tournament: Tournament = sampleTournament) => {
+    const authValue: AuthContextValue = {
+      user,
+      isLoading: false,
+      isAuthModalOpen: false,
+      authModalPrompt: null,
+      authErrorNotice: null,
+      openAuthModal: vi.fn(),
+      closeAuthModal: vi.fn(),
+      refreshUser: vi.fn().mockResolvedValue(user),
+      logout: vi.fn(),
+      clearAuthErrorNotice: vi.fn()
+    }
+    return render(
+      <AuthContext.Provider value={authValue}>
+        <TournamentDrawer tournament={tournament} isOpen={true} onClose={vi.fn()} />
+      </AuthContext.Provider>
+    )
+  }
+
+  it('US-31 sc.1: the organizer sees the «Спори» tab with the open-disputes counter before opening it', async () => {
+    vi.spyOn(registrationsApi, 'getTournamentRegistrations').mockResolvedValue(baseRegistrations)
+    vi.spyOn(disputesApi, 'getTournamentDisputes').mockResolvedValue({
+      tournamentId: sampleTournament.id,
+      openDisputesCount: 2,
+      disputes: []
+    })
+
+    renderAs(organizerUser)
+
+    expect(await screen.findByLabelText('Відкритих спорів: 2')).toBeInTheDocument()
+    expect(disputesApi.getTournamentDisputes).toHaveBeenCalledWith(sampleTournament.id)
+  })
+
+  it('US-31 checklist 5: a captain who is not the organizer never sees disputes and they are not requested', async () => {
+    vi.spyOn(registrationsApi, 'getTournamentRegistrations').mockResolvedValue(baseRegistrations)
+    const listDisputes = vi.spyOn(disputesApi, 'getTournamentDisputes')
+
+    renderAs(captainUser)
+
+    await waitFor(() => expect(registrationsApi.getTournamentRegistrations).toHaveBeenCalled())
+    expect(screen.queryByRole('button', { name: /Спори/ })).not.toBeInTheDocument()
+    expect(listDisputes).not.toHaveBeenCalled()
+  })
+
+  // Defence in depth: the backend no longer sends a chess pool (core TournamentMapPoolIntegrationTest US-08 sc.2),
+  // and the UI must not show one even for legacy data created before that fix.
+  it('US-08 checklist 4: a Chess.com tournament shows no map pool, even for legacy data with a pool', () => {
+    const chessTournament: Tournament = {
+      ...sampleTournament,
+      discipline: 'CHESS',
+      teamSize: 1,
+      mapPool: ['Blitz 3+2', 'Rapid 10+0']
+    }
+
+    renderAs(null, chessTournament)
+    fireEvent.click(screen.getByRole('button', { name: 'Пул карт та правила' }))
+
+    expect(screen.queryByText('Blitz 3+2')).not.toBeInTheDocument()
+    expect(screen.getByText(/класичний мап-пул відсутній/)).toBeInTheDocument()
   })
 })

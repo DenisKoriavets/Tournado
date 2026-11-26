@@ -2,10 +2,24 @@ import React, { useEffect, useState } from 'react'
 import { ApiError } from '../api/http'
 import { joinTeamByInvite, previewTeamInvite } from '../api/teams'
 import { useAuth } from '../context/AuthContext'
+import { savePendingInvite } from '../utils/pendingInvite'
 import type { TeamDetails, TeamInvitePreview } from '../types/teams'
 import { DISCIPLINE_CONFIG, type ProblemDetail } from '../types/tournament'
 import { DisciplineLogo } from './DisciplineLogo'
 import { AlertCircleIcon, CloseIcon, LinkIcon, LogInIcon, UsersIcon } from './icons/Icons'
+
+// US-05 messages per scenario; the backend `detail` is English, so known codes get a Ukrainian explanation.
+const JOIN_ERROR_MESSAGES: Record<string, string> = {
+  ROSTER_FULL: 'У команді немає вільних місць — ростер уже заповнений.',
+  PLAYER_ALREADY_IN_TEAM: 'Ви вже є в ростері цієї команди.',
+  INVITE_LINK_EXPIRED: 'Запрошення недійсне: посилання застаріло, деактивоване або команди не існує.',
+  TEAM_NOT_FOUND: 'Запрошення недійсне: команди не існує.',
+  ROSTER_LOCKED: 'Склад команди заблоковано (Roster Lock) — вступ після дедлайну реєстрації неможливий.'
+}
+
+function explainJoinError(problem: ProblemDetail): string {
+  return JOIN_ERROR_MESSAGES[problem.code ?? ''] ?? problem.detail
+}
 
 export interface JoinInviteModalProps {
   token: string | null
@@ -134,7 +148,7 @@ const JoinInviteContent: React.FC<JoinInviteContentProps> = ({ token, onClose, o
                 <AlertCircleIcon className="w-5 h-5 text-rose-400 shrink-0 mt-0.5" />
                 <div>
                   <div className="font-bold text-sm text-rose-300">{loadError.title}</div>
-                  <div className="mt-1">{loadError.detail}</div>
+                  <div className="mt-1">{explainJoinError(loadError)}</div>
                 </div>
               </div>
               <div className="flex justify-end">
@@ -195,7 +209,7 @@ const JoinInviteContent: React.FC<JoinInviteContentProps> = ({ token, onClose, o
                           </span>
                         )}
                       </div>
-                      <div className="mt-1">{joinError.detail}</div>
+                      <div className="mt-1">{explainJoinError(joinError)}</div>
                     </div>
                   </div>
                 )}
@@ -209,9 +223,10 @@ const JoinInviteContent: React.FC<JoinInviteContentProps> = ({ token, onClose, o
                     </p>
                     <button
                       type="button"
-                      onClick={() =>
+                      onClick={() => {
+                        savePendingInvite(token)
                         openAuthModal('Увійдіть через Steam або пошту для підтвердження вступу до команди.')
-                      }
+                      }}
                       className="w-full py-2.5 px-4 rounded-xl bg-orange-500 hover:bg-orange-400 text-white text-xs font-bold transition flex items-center justify-center gap-2 cursor-pointer"
                     >
                       <LogInIcon className="w-4 h-4" />
