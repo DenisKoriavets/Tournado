@@ -12,6 +12,8 @@
 | ai-service: pytest, mock provider | 35 | green | `npm run test:ai` |
 | **Total** | **444** | **green** | **`npm test` from the repo root** |
 
+After merging `feat/bracket-engine` (check-in, bracket generation, standings, plus 22 Mockito/WebMvc tests by the Tournament Engine owner), core has **318** tests and the total is **466**, all green. Our US-28 and US-34 integration tests close real matches, so they also exercise the bracket branch's `BracketMatchEventListener` together with `MatchResultService`. No double advancement was observed.
+
 Additional gates:
 - `cd frontend && npm run lint && npx tsc --noEmit && npm run build` is green. **Lint was red before this practice**; see Bug 2.
 - Each suite was run at least twice in a row with no state leaking between runs. Core truncates every table before each test.
@@ -58,7 +60,30 @@ Each production change below was made temporarily, tests were run, and the file 
 
 ## 2. Manual smoke checklist (UI)
 
-**Status: not run yet.** It will be run manually on `docker compose up --build` before the practical meeting. The DB starts fresh, and the V6 fixture is "Dispute QA Arena — CS2".
+### 2.1 End-to-end API smoke on the running stack (done, 2026-11-26)
+
+`docker compose up --build` was run with a fresh DB (`.env` copied from `.env.example`, `AI_PROVIDER=mock`).
+- **Service health:** all 5 containers are up; Flyway applied V1–V6; core and ai-service health checks are `UP`.
+- **Frontend through nginx:** `/` returns 200 and the deep link `/tournaments/{id}` returns 200 (SPA fallback); the nginx `/api` proxy returns 200.
+- **Demo scenario:** run through nginx (`:3000`) exactly like the browser does, with the V6 accounts logging in through real magic links from Mailpit:
+
+| Step | Result |
+| :--- | :--- |
+| Login `t.captain`, `ct.captain`, `dispute.organizer` via magic link | OK (`/auth/me` returns the display names) |
+| Score `13.5` (Bug 1) | **400 VALIDATION_FAILED** |
+| Captain 1 submits 13:9 → captain 2 submits 9:13 | `bothSubmitted=false`, then `bothSubmitted=true, scoresMatched=false` |
+| Dispute with `test_screenshot_1.jpg` (multipart through nginx) | 201 `OPEN`, AI `PENDING`; a second dispute gets **409** |
+| Organizer dispute list | `openDisputesCount = 1` |
+| Dispute card after the async AI analysis | `SUCCESS 13:9`, confidence 0.985, all 10 nicknames found in the locked rosters; screenshot served as `image/jpeg` |
+| Captain tries to resolve | **403 AUTH_FORBIDDEN** |
+| Organizer approves the AI hint | 200 `RESOLVED`, match `COMPLETED`, winner placed in the final's team1 slot |
+| New Chess.com tournament (Bug 7) | 201, `mapPool = []` |
+
+This run consumed V6 semifinal 1. Reset the DB with `docker compose down -v && docker compose up` before the live demo.
+
+### 2.2 UI checklist in the browser (to be ticked manually)
+
+The checklist is run on `docker compose up --build` with a fresh DB and the V6 fixture "Dispute QA Arena — CS2".
 
 | # | Check | Expected | Result |
 | :---: | :--- | :--- | :---: |
