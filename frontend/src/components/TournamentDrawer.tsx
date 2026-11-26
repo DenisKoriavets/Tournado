@@ -14,6 +14,9 @@ import type { ProblemDetail, Tournament } from '../types/tournament'
 import { DISCIPLINE_CONFIG, STATUS_CONFIG } from '../types/tournament'
 import { formatDateTime } from '../utils/date'
 import { DisciplineLogo } from './DisciplineLogo'
+import { DisputeCardModal } from './DisputeCardModal'
+import { useOrganizerDisputes } from '../hooks/useOrganizerDisputes'
+import { TournamentDisputesTab } from './TournamentDisputesTab'
 import {
   AlertCircleIcon,
   CheckIcon,
@@ -33,7 +36,7 @@ interface TournamentDrawerProps {
   onRegistrationsChanged?: () => void
 }
 
-type TabKey = 'overview' | 'schedule' | 'server' | 'participants'
+type TabKey = 'overview' | 'schedule' | 'server' | 'participants' | 'disputes'
 
 export const TournamentDrawer: React.FC<TournamentDrawerProps> = ({
   tournament,
@@ -82,6 +85,31 @@ const TournamentDrawerContent: React.FC<TournamentDrawerContentProps> = ({
   const [removingTeamId, setRemovingTeamId] = useState<string | null>(null)
   const [isLockingRosters, setIsLockingRosters] = useState(false)
   const [nowMs] = useState(() => Date.now())
+  // Organizer id comes only from the public registrations endpoint (TournamentResponse has no organizer field).
+  const [organizerId, setOrganizerId] = useState<string | null>(null)
+  const [openDisputeId, setOpenDisputeId] = useState<string | null>(null)
+
+  useEffect(() => {
+    if (!user) return
+    let cancelled = false
+    const loadOrganizer = async () => {
+      try {
+        const regData = await getTournamentRegistrations(tournament.id)
+        if (!cancelled) setOrganizerId(regData.organizerId ?? null)
+      } catch {
+        // Organizer-only features simply stay hidden.
+      }
+    }
+    void loadOrganizer()
+    return () => {
+      cancelled = true
+    }
+  }, [tournament.id, user])
+
+  const isOrganizerViewer = Boolean(user && organizerId && user.id === organizerId)
+  const disputesState = useOrganizerDisputes(tournament.id, isOrganizerViewer)
+  const showDisputesTab = isOrganizerViewer && !disputesState.forbidden
+  const openDisputesCount = disputesState.data?.openDisputesCount ?? 0
 
   // Close on Escape key
   useEffect(() => {
@@ -304,12 +332,13 @@ const TournamentDrawerContent: React.FC<TournamentDrawerContentProps> = ({
   const canModerate =
     isOrganizer && tournament.status !== 'IN_PROGRESS' && tournament.status !== 'COMPLETED'
 
+  // US-08: Chess.com has no map pool, even if the backend sends one (time controls are not maps).
   const maps =
-    tournament.mapPool && tournament.mapPool.length > 0
-      ? tournament.mapPool
-      : tournament.discipline !== 'CHESS'
-      ? discMeta.defaultMaps
-      : []
+    tournament.discipline === 'CHESS'
+      ? []
+      : tournament.mapPool && tournament.mapPool.length > 0
+        ? tournament.mapPool
+        : discMeta.defaultMaps
 
   return (
     <div className="fixed inset-0 z-50 overflow-hidden animate-fadeIn" role="dialog" aria-modal="true">
@@ -408,6 +437,27 @@ const TournamentDrawerContent: React.FC<TournamentDrawerContentProps> = ({
               >
                 {tournament.discipline === 'CS2' ? 'Сервер і карти' : 'Пул карт та правила'}
               </button>
+              {showDisputesTab && (
+                <button
+                  type="button"
+                  onClick={() => setActiveTab('disputes')}
+                  className={`px-3 py-2 text-xs font-semibold rounded-lg transition cursor-pointer flex items-center gap-1.5 ${
+                    activeTab === 'disputes'
+                      ? 'bg-orange-500/10 text-orange-400 border border-orange-500/30'
+                      : 'text-slate-400 hover:text-slate-200'
+                  }`}
+                >
+                  <span>Спори</span>
+                  {openDisputesCount > 0 && (
+                    <span
+                      className="min-w-[18px] h-[18px] px-1 rounded-full bg-rose-600 text-white text-[10px] font-bold flex items-center justify-center"
+                      aria-label={`Відкритих спорів: ${openDisputesCount}`}
+                    >
+                      {openDisputesCount}
+                    </span>
+                  )}
+                </button>
+              )}
             </div>
           </div>
 
@@ -812,6 +862,10 @@ const TournamentDrawerContent: React.FC<TournamentDrawerContentProps> = ({
               </div>
             )}
 
+            {activeTab === 'disputes' && showDisputesTab && (
+              <TournamentDisputesTab state={disputesState} onOpenDispute={setOpenDisputeId} />
+            )}
+
             {activeTab === 'server' && (
               <div className="space-y-6">
                 {/* CS2 Server Connect Section */}
@@ -899,6 +953,14 @@ const TournamentDrawerContent: React.FC<TournamentDrawerContentProps> = ({
           </div>
         </div>
       </div>
+
+      {openDisputeId && (
+        <DisputeCardModal
+          disputeId={openDisputeId}
+          onClose={() => setOpenDisputeId(null)}
+          onResolved={disputesState.reload}
+        />
+      )}
     </div>
   )
 }

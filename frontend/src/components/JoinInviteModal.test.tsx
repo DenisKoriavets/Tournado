@@ -1,6 +1,8 @@
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { ApiError } from '../api/http'
 import * as teamsApi from '../api/teams'
+import { readPendingInvite } from '../utils/pendingInvite'
 import { AuthContext, type AuthContextValue } from '../context/AuthContext'
 import type { UserProfile } from '../types/auth'
 import type { TeamDetails, TeamInvitePreview } from '../types/teams'
@@ -59,7 +61,7 @@ describe('JoinInviteModal component', () => {
     onCloseMock.mockClear()
   })
 
-  it('prompts guest user to log in before confirming invite join', async () => {
+  it('US-05 checklist 1-2: the invite shows the team and asks a guest to log in before joining', async () => {
     vi.spyOn(teamsApi, 'previewTeamInvite').mockResolvedValueOnce(preview)
 
     renderModal(null)
@@ -73,7 +75,7 @@ describe('JoinInviteModal component', () => {
     expect(openAuthModalMock).toHaveBeenCalledTimes(1)
   })
 
-  it('joins team when authenticated user confirms', async () => {
+  it('US-05 sc.1: an authenticated player confirms and joins the team', async () => {
     const joinedDetails: TeamDetails = {
       id: 'team-1',
       name: 'Kyiv Mohyla Five',
@@ -103,5 +105,55 @@ describe('JoinInviteModal component', () => {
       expect(onJoinedMock).toHaveBeenCalledWith(joinedDetails)
       expect(onCloseMock).toHaveBeenCalledTimes(1)
     })
+  })
+
+  it("US-05 checklist 2: the guest's invite is remembered before login so it reopens after the redirect", async () => {
+    window.localStorage.clear()
+    vi.spyOn(teamsApi, 'previewTeamInvite').mockResolvedValueOnce(preview)
+
+    renderModal(null)
+    fireEvent.click(await screen.findByRole('button', { name: /Увійти для підтвердження вступу/i }))
+
+    expect(readPendingInvite()).toBe('tok-999')
+    window.localStorage.clear()
+  })
+
+  it.each([
+    ['US-05 sc.2', 'ROSTER_FULL', 409, 'У команді немає вільних місць'],
+    ['US-05 sc.3', 'PLAYER_ALREADY_IN_TEAM', 409, 'Ви вже є в ростері цієї команди'],
+    ['US-05 sc.5', 'ROSTER_LOCKED', 409, 'Склад команди заблоковано']
+  ])('%s: joining fails with %s and the player sees a clear explanation', async (_id, code, status, message) => {
+    vi.spyOn(teamsApi, 'previewTeamInvite').mockResolvedValueOnce(preview)
+    vi.spyOn(teamsApi, 'joinTeamByInvite').mockRejectedValueOnce(
+      new ApiError({ title: 'Conflict', status, detail: 'English backend detail', code })
+    )
+
+    renderModal(memberUser)
+    fireEvent.click(await screen.findByRole('button', { name: /Підтвердити вступ до команди/i }))
+
+    expect(await screen.findByText(new RegExp(message))).toBeInTheDocument()
+    expect(onJoinedMock).not.toHaveBeenCalled()
+  })
+
+  it('US-05 sc.2: opening the link of a full roster already says there are no free places and blocks joining', async () => {
+    vi.spyOn(teamsApi, 'previewTeamInvite').mockResolvedValueOnce({ ...preview, memberCount: 5, isFull: true })
+    const join = vi.spyOn(teamsApi, 'joinTeamByInvite')
+
+    renderModal(memberUser)
+
+    expect(await screen.findByText(/заповнено всі слоти/)).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /Підтвердити вступ до команди/i })).toBeDisabled()
+    expect(join).not.toHaveBeenCalled()
+  })
+
+  it('US-05 sc.4: an invalid or expired invite shows "invalid invitation" and no join button', async () => {
+    vi.spyOn(teamsApi, 'previewTeamInvite').mockRejectedValueOnce(
+      new ApiError({ title: 'Bad Request', status: 400, detail: 'Invite expired', code: 'INVITE_LINK_EXPIRED' })
+    )
+
+    renderModal(memberUser)
+
+    expect(await screen.findByText(/Запрошення недійсне/)).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /Підтвердити вступ до команди/i })).not.toBeInTheDocument()
   })
 })

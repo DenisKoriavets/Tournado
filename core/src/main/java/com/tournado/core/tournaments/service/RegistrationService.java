@@ -5,6 +5,7 @@ import com.tournado.core.common.exception.InvalidParam;
 import com.tournado.core.teams.service.TeamMemberView;
 import com.tournado.core.teams.service.TeamQueryService;
 import com.tournado.core.teams.service.TeamView;
+import com.tournado.core.tournaments.api.dto.CheckInResponse;
 import com.tournado.core.tournaments.api.dto.LockRostersResponse;
 import com.tournado.core.tournaments.api.dto.RegisterTeamResponse;
 import com.tournado.core.tournaments.api.dto.RegisteredTeamItem;
@@ -15,6 +16,9 @@ import com.tournado.core.tournaments.domain.RosterSnapshotEntity;
 import com.tournado.core.tournaments.domain.TournamentEntity;
 import com.tournado.core.tournaments.domain.TournamentStatus;
 import com.tournado.core.tournaments.exception.AlreadyRegisteredException;
+import com.tournado.core.tournaments.exception.CheckInAlreadyConfirmedException;
+import com.tournado.core.tournaments.exception.CheckInExpiredException;
+import com.tournado.core.tournaments.exception.CheckInNotOpenException;
 import com.tournado.core.tournaments.exception.MissingGameIdentifierException;
 import com.tournado.core.tournaments.exception.OnlyOrganizerAllowedException;
 import com.tournado.core.tournaments.exception.RegisteredTeamNotFoundException;
@@ -263,6 +267,54 @@ public class RegistrationService {
 
         rosterSnapshotRepository.saveAll(newSnapshots);
         return new LockRostersResponse("LOCKED", existingSnapshots.size() + newSnapshots.size());
+    }
+
+    @Transactional
+    public CheckInResponse checkInTeam(UUID tournamentId, UUID teamId, UUID actorUserId) {
+        Objects.requireNonNull(tournamentId, "tournamentId must not be null");
+        Objects.requireNonNull(teamId, "teamId must not be null");
+        Objects.requireNonNull(actorUserId, "actorUserId must not be null");
+
+        TournamentEntity tournament = findTournamentOrThrow(tournamentId);
+        Instant now = Instant.now(clock);
+
+        if (tournament.getStatus() == TournamentStatus.IN_PROGRESS
+                || tournament.getStatus() == TournamentStatus.COMPLETED
+                || !now.isBefore(tournament.getStartTimeAt())) {
+            throw new CheckInExpiredException(tournamentId);
+        }
+        if (tournament.getStatus() == TournamentStatus.DRAFT
+                || (tournament.getStatus() != TournamentStatus.CHECK_IN_ACTIVE
+                && now.isBefore(tournament.getCheckInOpensAt()))) {
+            throw new CheckInNotOpenException(tournamentId);
+        }
+
+        TeamView team = teamQueryService.findTeamById(teamId)
+                .orElseThrow(() -> new RegisteredTeamNotFoundException(teamId));
+        if (!team.captainId().equals(actorUserId)) {
+            throw new RegistrationCaptainForbiddenException();
+        }
+
+        RegistrationEntity registration = registrationRepository.findByTournamentIdAndTeamId(tournamentId, teamId)
+                .orElseThrow(() -> new RegistrationNotFoundException(tournamentId, teamId));
+
+        if (registration.getStatus() == RegistrationStatus.EXCLUDED) {
+            throw new RegistrationNotFoundException(tournamentId, teamId);
+        }
+        if (registration.getStatus() == RegistrationStatus.CHECKED_IN) {
+            throw new CheckInAlreadyConfirmedException(teamId, tournamentId);
+        }
+
+        registration.setStatus(RegistrationStatus.CHECKED_IN);
+        registration.setCheckedInAt(now);
+        registrationRepository.save(registration);
+
+        if (tournament.getStatus() == TournamentStatus.REGISTRATION_OPEN) {
+            tournament.setStatus(TournamentStatus.CHECK_IN_ACTIVE);
+            tournamentRepository.save(tournament);
+        }
+
+        return new CheckInResponse(RegistrationStatus.CHECKED_IN, now);
     }
 
     private TournamentEntity findTournamentOrThrow(UUID tournamentId) {

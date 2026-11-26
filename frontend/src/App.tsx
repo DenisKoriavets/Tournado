@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { getTournamentById, getTournaments } from './api/tournaments'
 import { AuthModal } from './components/AuthModal'
 import { DisciplineLogo } from './components/DisciplineLogo'
@@ -28,7 +28,10 @@ import { useAuth } from './context/AuthContext'
 import { AuthProvider } from './context/AuthProvider'
 import type { TeamDetails } from './types/teams'
 import { DISCIPLINE_CONFIG, type Tournament } from './types/tournament'
+import { ApiError } from './api/http'
 import { formatRelativeTimeUntil } from './utils/date'
+import { clearPendingInvite, readPendingInvite } from './utils/pendingInvite'
+import { parseTournamentIdFromPath, tournamentPath } from './utils/route'
 
 function readJoinTokenFromPath(): string | null {
   if (typeof window === 'undefined') return null
@@ -38,11 +41,25 @@ function readJoinTokenFromPath(): string | null {
 
 // Deterministic Match Room fixtures from V4__seed_match_room_qa_data.sql, used for manual QA
 // of Ready Check / Map Veto (US-22, US-23, US-25, US-26) ahead of bracket generation (US-18..21).
+// Each score/dispute rehearsal consumes a semi-final: reset the DB with `docker compose down -v`.
 const QA_MATCH_OPTIONS: { label: string; matchId: string }[] = [
   { label: 'CS2 — Map Veto', matchId: '22222222-0005-4000-8000-000000000001' },
   { label: 'Brawl Stars — Map Veto', matchId: '22222222-0005-4000-8000-000000000002' },
-  { label: 'Chess.com — авто-пропуск', matchId: '22222222-0005-4000-8000-000000000003' }
+  { label: 'Chess.com — авто-пропуск', matchId: '22222222-0005-4000-8000-000000000003' },
+  // V6__seed_dispute_qa_data.sql: semi-finals already IN_PROGRESS — score entry and disputes (US-27, US-30)
+  { label: 'Dispute QA — півфінал 1 (рахунок/спір)', matchId: '33333333-0005-4000-8000-000000000001' },
+  { label: 'Dispute QA — півфінал 2 (рахунок/спір)', matchId: '33333333-0005-4000-8000-000000000002' }
 ]
+
+type TournamentLookup = { kind: 'found'; tournament: Tournament } | { kind: 'notFound' } | { kind: 'error' }
+
+async function lookupTournament(tournamentId: string): Promise<TournamentLookup> {
+  try {
+    return { kind: 'found', tournament: await getTournamentById(tournamentId) }
+  } catch (err: unknown) {
+    return err instanceof ApiError && err.problem.status === 404 ? { kind: 'notFound' } : { kind: 'error' }
+  }
+}
 
 export default function App() {
   return (
@@ -74,11 +91,15 @@ function AppShell() {
   const [isProfileOpen, setIsProfileOpen] = useState<boolean>(false)
   const [isTeamsOpen, setIsTeamsOpen] = useState<boolean>(false)
   const [initialTeamId, setInitialTeamId] = useState<string | null>(null)
-  const [joinToken, setJoinToken] = useState<string | null>(() => readJoinTokenFromPath())
+  // US-05: an invite opened before login is restored after the login redirect lands on "/".
+  const [joinToken, setJoinToken] = useState<string | null>(() => readJoinTokenFromPath() ?? readPendingInvite())
   const [viewingMatchId, setViewingMatchId] = useState<string | null>(null)
   const [isMatchMenuOpen, setIsMatchMenuOpen] = useState<boolean>(false)
 
   const [selectedTournament, setSelectedTournament] = useState<Tournament | null>(null)
+  const [tournamentNotFound, setTournamentNotFound] = useState(false)
+  // Only the latest requested tournament may populate the drawer (fast clicks / back button).
+  const latestTournamentRequestRef = useRef<string | null>(null)
   const [notification, setNotification] = useState<{
     message: string
     type: 'success' | 'info'
@@ -131,13 +152,71 @@ function AppShell() {
     }
   }, [])
 
+  const applyTournamentLookup = useCallback((tournamentId: string, lookup: TournamentLookup) => {
+    if (latestTournamentRequestRef.current !== tournamentId) return
+    if (lookup.kind === 'found') {
+      setTournamentNotFound(false)
+      setSelectedTournament(lookup.tournament)
+    } else if (lookup.kind === 'notFound') {
+      setSelectedTournament(null)
+      setTournamentNotFound(true)
+    }
+    // 'error': keep the summary already shown (if any).
+  }, [])
+
+  const loadTournamentIntoDrawer = useCallback(
+    async (tournamentId: string) => {
+      latestTournamentRequestRef.current = tournamentId
+      applyTournamentLookup(tournamentId, await lookupTournament(tournamentId))
+    },
+    [applyTournamentLookup]
+  )
+
+  // US-11: open the public tournament link /tournaments/{id} directly, also for anonymous visitors.
+  // State is applied only after the await (react-hooks/set-state-in-effect).
+  useEffect(() => {
+    let cancelled = false
+    const openFromPath = async () => {
+      const id = parseTournamentIdFromPath(window.location.pathname)
+      if (!id) return
+      latestTournamentRequestRef.current = id
+      const lookup = await lookupTournament(id)
+      if (!cancelled) applyTournamentLookup(id, lookup)
+    }
+    void openFromPath()
+    return () => {
+      cancelled = true
+    }
+  }, [applyTournamentLookup])
+
+  useEffect(() => {
+    const handlePopState = () => {
+      const id = parseTournamentIdFromPath(window.location.pathname)
+      if (id) {
+        void loadTournamentIntoDrawer(id)
+      } else {
+        latestTournamentRequestRef.current = null
+        setSelectedTournament(null)
+      }
+    }
+    window.addEventListener('popstate', handlePopState)
+    return () => window.removeEventListener('popstate', handlePopState)
+  }, [loadTournamentIntoDrawer])
+
   const handleSelectTournament = async (t: Tournament) => {
     setSelectedTournament(t)
-    try {
-      const full = await getTournamentById(t.id)
-      setSelectedTournament(full)
-    } catch {
-      // If fetching full details fails, retain summary
+    setTournamentNotFound(false)
+    if (window.location.pathname !== tournamentPath(t.id)) {
+      window.history.pushState({}, '', tournamentPath(t.id))
+    }
+    await loadTournamentIntoDrawer(t.id)
+  }
+
+  const handleCloseTournament = () => {
+    latestTournamentRequestRef.current = null
+    setSelectedTournament(null)
+    if (parseTournamentIdFromPath(window.location.pathname)) {
+      window.history.pushState({}, '', '/')
     }
   }
 
@@ -184,6 +263,7 @@ function AppShell() {
 
   const handleCloseJoinInvite = () => {
     setJoinToken(null)
+    clearPendingInvite()
     if (typeof window !== 'undefined' && window.location.pathname.startsWith('/join/')) {
       window.history.replaceState({}, '', '/')
     }
@@ -388,6 +468,30 @@ function AppShell() {
           </div>
         )}
 
+        {/* US-11: public link to a tournament that does not exist */}
+        {tournamentNotFound && (
+          <div
+            role="alert"
+            className="p-4 rounded-xl bg-amber-500/10 border border-amber-500/30 text-amber-200 flex items-center justify-between gap-3 animate-fadeIn"
+          >
+            <div className="flex items-center gap-3 text-xs">
+              <AlertCircleIcon className="w-4 h-4 text-amber-400 shrink-0" />
+              <span className="font-medium">Турнір не знайдено. Можливо, посилання застаріле або містить помилку.</span>
+            </div>
+            <button
+              type="button"
+              onClick={() => {
+                setTournamentNotFound(false)
+                window.history.replaceState({}, '', '/')
+              }}
+              className="text-amber-400 hover:text-amber-200 transition"
+              aria-label="Закрити повідомлення про відсутній турнір"
+            >
+              <CloseIcon className="w-4 h-4" />
+            </button>
+          </div>
+        )}
+
         {/* Notification Toast */}
         {notification && (
           <div className="p-4 rounded-xl bg-emerald-500/10 border border-emerald-500/30 text-emerald-300 flex items-center justify-between animate-fadeIn">
@@ -528,7 +632,7 @@ function AppShell() {
       <TournamentDrawer
         tournament={selectedTournament}
         isOpen={Boolean(selectedTournament)}
-        onClose={() => setSelectedTournament(null)}
+        onClose={handleCloseTournament}
         onRegistrationsChanged={handleRegistrationsChanged}
       />
 

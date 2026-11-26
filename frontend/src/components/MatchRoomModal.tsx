@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useState } from 'react'
+import React, { useCallback, useEffect, useRef, useState } from 'react'
 import { banMatchMap, getMatchRoom, markMatchReady } from '../api/matches'
 import { ApiError } from '../api/http'
 import { getTeamById } from '../api/teams'
@@ -7,6 +7,8 @@ import type { MatchRoom } from '../types/matches'
 import type { TeamDetails } from '../types/teams'
 import { DISCIPLINE_CONFIG, type ProblemDetail } from '../types/tournament'
 import { DisciplineLogo } from './DisciplineLogo'
+import { OpenDisputeDialog } from './OpenDisputeDialog'
+import { ScoreEntryForm } from './ScoreEntryForm'
 import {
   AlertCircleIcon,
   CheckIcon,
@@ -31,10 +33,25 @@ const STATUS_LABELS: Record<MatchRoom['status'], string> = {
   PICK_BAN: 'Вибір/бан карт',
   IN_PROGRESS: 'Матч триває',
   COMPLETED: 'Завершено',
-  DISPUTED: 'Суперечка'
+  DISPUTED: 'Спір'
 }
 
 const REFRESH_INTERVAL_MS = 4000
+
+interface RoomBundle {
+  room: MatchRoom
+  team1: TeamDetails | null
+  team2: TeamDetails | null
+}
+
+async function fetchRoomBundle(matchId: string): Promise<RoomBundle> {
+  const room = await getMatchRoom(matchId)
+  const [team1, team2] = await Promise.all([
+    getTeamById(room.team1.id).catch(() => null),
+    getTeamById(room.team2.id).catch(() => null)
+  ])
+  return { room, team1, team2 }
+}
 
 export const MatchRoomModal: React.FC<MatchRoomModalProps> = ({ matchId, onClose }) => {
   if (!matchId) return null
@@ -52,36 +69,46 @@ const MatchRoomContent: React.FC<{ matchId: string; onClose: () => void }> = ({ 
   const [isSubmittingReady, setIsSubmittingReady] = useState(false)
   const [banningMap, setBanningMap] = useState<string | null>(null)
   const [copiedField, setCopiedField] = useState<string | null>(null)
+  const [isDisputeDialogOpen, setIsDisputeDialogOpen] = useState(false)
+  const [disputeOpenedNotice, setDisputeOpenedNotice] = useState(false)
+  const hasRoomRef = useRef(false)
 
-  const loadRoom = useCallback(
-    async (showSpinner: boolean) => {
-      if (showSpinner) setIsLoading(true)
-      try {
-        const data = await getMatchRoom(matchId)
-        setRoom(data)
-        setLoadError(null)
-        const [t1, t2] = await Promise.all([getTeamById(data.team1.id), getTeamById(data.team2.id)])
-        setTeam1Details(t1)
-        setTeam2Details(t2)
-      } catch (err: unknown) {
-        if (err instanceof ApiError) {
-          if (err.problem.status === 401) {
-            openAuthModal('Увійдіть, щоб переглянути Match Room.')
-          }
-          setLoadError(err.problem)
-        } else {
-          setLoadError({
-            title: 'Помилка завантаження',
-            status: 500,
-            detail: 'Не вдалося завантажити кімнату матчу.'
-          })
+  const applyBundle = useCallback((bundle: RoomBundle) => {
+    setRoom(bundle.room)
+    hasRoomRef.current = true
+    setLoadError(null)
+    if (bundle.team1) setTeam1Details(bundle.team1)
+    if (bundle.team2) setTeam2Details(bundle.team2)
+  }, [])
+
+  const applyLoadError = useCallback(
+    (err: unknown) => {
+      // A failed background poll keeps the last known room on screen.
+      if (hasRoomRef.current) return
+      if (err instanceof ApiError) {
+        if (err.problem.status === 401) {
+          openAuthModal('Увійдіть, щоб переглянути Match Room.')
         }
-      } finally {
-        if (showSpinner) setIsLoading(false)
+        setLoadError(err.problem)
+      } else {
+        setLoadError({
+          title: 'Помилка завантаження',
+          status: 500,
+          detail: 'Не вдалося завантажити кімнату матчу.'
+        })
       }
     },
-    [matchId, openAuthModal]
+    [openAuthModal]
   )
+
+  /** Manual refresh after user actions (ready, score, dispute). */
+  const loadRoom = useCallback(async () => {
+    try {
+      applyBundle(await fetchRoomBundle(matchId))
+    } catch (err: unknown) {
+      applyLoadError(err)
+    }
+  }, [matchId, applyBundle, applyLoadError])
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -91,18 +118,34 @@ const MatchRoomContent: React.FC<{ matchId: string; onClose: () => void }> = ({ 
     return () => window.removeEventListener('keydown', handleKeyDown)
   }, [onClose])
 
+  // Initial load + polling. State is only set after an await (react-hooks/set-state-in-effect),
+  // and isLoading starts as true, so nothing is set synchronously in the effect body.
   useEffect(() => {
-    loadRoom(true)
-    const interval = window.setInterval(() => loadRoom(false), REFRESH_INTERVAL_MS)
-    return () => window.clearInterval(interval)
-  }, [loadRoom])
+    let cancelled = false
+    const refresh = async () => {
+      try {
+        const bundle = await fetchRoomBundle(matchId)
+        if (!cancelled) applyBundle(bundle)
+      } catch (err: unknown) {
+        if (!cancelled) applyLoadError(err)
+      } finally {
+        if (!cancelled) setIsLoading(false)
+      }
+    }
+    void refresh()
+    const interval = window.setInterval(() => void refresh(), REFRESH_INTERVAL_MS)
+    return () => {
+      cancelled = true
+      window.clearInterval(interval)
+    }
+  }, [matchId, applyBundle, applyLoadError])
 
   const handleReady = async () => {
     setActionError(null)
     setIsSubmittingReady(true)
     try {
       await markMatchReady(matchId)
-      await loadRoom(false)
+      await loadRoom()
     } catch (err: unknown) {
       if (err instanceof ApiError) {
         setActionError(err.problem)
@@ -187,6 +230,7 @@ const MatchRoomContent: React.FC<{ matchId: string; onClose: () => void }> = ({ 
   const cs2ConnectString = room.credentials?.cs2ConnectString ?? null
   const brawlStarsCode = room.credentials?.brawlStarsCode ?? null
   const chessGameUrl = room.credentials?.chessGameUrl ?? null
+  const showScoreEntry = room.status === 'IN_PROGRESS' && room.discipline !== 'CHESS' && myTeamId !== null
 
   return (
     <div
@@ -391,8 +435,52 @@ const MatchRoomContent: React.FC<{ matchId: string; onClose: () => void }> = ({ 
               )}
             </div>
           )}
+
+          {room.status === 'DISPUTED' && (
+            <div role="status" className="p-4 rounded-xl bg-rose-500/10 border border-rose-500/30 text-xs text-rose-200 flex items-start gap-2">
+              <ShieldIcon className="w-4 h-4 text-rose-400 shrink-0 mt-0.5" />
+              <span>
+                У матчі відкрито спір. Просування по сітці зупинено до рішення організатора турніру.
+              </span>
+            </div>
+          )}
+
+          {disputeOpenedNotice && room.status !== 'DISPUTED' && (
+            <div role="status" className="p-4 rounded-xl bg-rose-500/10 border border-rose-500/30 text-xs text-rose-200">
+              Спір відкрито — організатор розгляне його найближчим часом.
+            </div>
+          )}
+
+          {showScoreEntry && !disputeOpenedNotice && (
+            <ScoreEntryForm
+              matchId={matchId}
+              team1Id={room.team1.id}
+              team2Id={room.team2.id}
+              team1Name={room.team1.name ?? 'Команда 1'}
+              team2Name={room.team2.name ?? 'Команда 2'}
+              onMatchCompleted={() => void loadRoom()}
+              onRoomOutdated={() => void loadRoom()}
+              onOpenDispute={() => setIsDisputeDialogOpen(true)}
+            />
+          )}
+
+          {room.status === 'IN_PROGRESS' && room.discipline === 'CHESS' && (
+            <p className="text-xs text-slate-500">Для шахових матчів рахунок вручну не вводиться.</p>
+          )}
         </div>
       </div>
+
+      {isDisputeDialogOpen && (
+        <OpenDisputeDialog
+          matchId={matchId}
+          onClose={() => setIsDisputeDialogOpen(false)}
+          onOpened={() => {
+            setIsDisputeDialogOpen(false)
+            setDisputeOpenedNotice(true)
+            void loadRoom()
+          }}
+        />
+      )}
     </div>
   )
 }

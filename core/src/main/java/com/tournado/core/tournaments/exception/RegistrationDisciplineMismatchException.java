@@ -8,7 +8,8 @@ public class RegistrationDisciplineMismatchException extends DomainException {
 
     public RegistrationDisciplineMismatchException(Discipline teamDiscipline, Discipline tournamentDiscipline) {
         super(
-                HttpStatus.UNPROCESSABLE_ENTITY,
+                // error-format.md §3.6: VALIDATION_FAILED is a 400 (practice 6 QA audit; it used to be 422).
+                HttpStatus.BAD_REQUEST,
                 "VALIDATION_FAILED",
                 "Team discipline '" + teamDiscipline + "' does not match tournament discipline '"
                         + tournamentDiscipline + "'."

@@ -40,3 +40,11 @@ export interface MatchRoom {
 export interface ReadyState {
   isReady: boolean
 }
+
+// US-27 / US-28: POST /api/v1/matches/{id}/scores response (api-contracts.md §7.1)
+export interface SubmitScoreResult {
+  matchStatus: MatchStatus
+  winnerTeamId: string | null
+  bothSubmitted: boolean
+  scoresMatched: boolean
+}

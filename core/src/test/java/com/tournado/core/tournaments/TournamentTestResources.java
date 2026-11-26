@@ -212,7 +212,7 @@ public final class TournamentTestResources {
                 CHECK_IN_OPENS,
                 START_TIME,
                 null,
-                List.of("Blitz 3+2", "Rapid 10+0"),
+                List.of(),
                 0,
                 NOW
         );

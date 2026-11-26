@@ -46,7 +46,9 @@ export async function requestJson<T>(url: string, options: RequestInit = {}): Pr
   if (!headers.has('Accept')) {
     headers.set('Accept', 'application/json')
   }
-  if (options.body !== undefined && !headers.has('Content-Type')) {
+  // FormData (multipart upload) must let the browser set Content-Type with its boundary.
+  const isFormData = typeof FormData !== 'undefined' && options.body instanceof FormData
+  if (options.body !== undefined && !isFormData && !headers.has('Content-Type')) {
     headers.set('Content-Type', 'application/json')
   }
 
