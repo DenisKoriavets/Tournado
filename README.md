@@ -88,12 +88,30 @@ curl -i -X POST http://localhost:8080/api/v1/tournaments \
   -d '{"name": "API Faculty Cup CS2", "discipline": "CS2", "slotLimit": 16, "registrationDeadlineAt": "2026-12-01T15:00:00Z", "checkInOpensAt": "2026-12-01T16:00:00Z", "startTimeAt": "2026-12-01T17:00:00Z"}'
 ```
 
-#### Крок 5. Запуск детермінованих перевірок (Лінтінг, тести, збірка)
-* **Бекенд (147 тестів + компілятор `-Xlint` + Checkstyle):**
+#### Крок 5. Запуск автотестів однією командою
+```bash
+npm test
+```
+Команда з кореня репозиторію запускає всі три набори тестів і друкує підсумок `PASS/FAIL` по кожному:
+* **core:** JUnit 5. Сюди входять unit-тести, `@WebMvcTest` і **API-інтеграційні тести на справжній PostgreSQL 16 (Testcontainers)** для US-05, US-08, US-12, US-27/28, US-34.
+* **frontend:** Vitest + Testing Library.
+* **ai-service:** pytest із mock-провайдером ШІ.
+
+Окремі набори: `npm run test:core`, `npm run test:frontend`, `npm run test:ai`.
+
+**Що потрібно:**
+* JDK 21+, Node 20+, Python 3.12+ і **запущений Docker** (для інтеграційних тестів core).
+* Перед першим запуском: `cd frontend && npm ci` та `cd ai-service && python -m venv .venv && .venv/Scripts/pip install -e ".[dev]"` (на Linux/macOS — `.venv/bin/pip`).
+* Глобальний Maven не потрібен: `core/` містить Maven Wrapper (`mvnw`).
+
+Тестова стратегія: [`docs/testing-strategy.md`](docs/testing-strategy.md). Звіт про якість: [`docs/testing-report.md`](docs/testing-report.md).
+
+**Додаткові перевірки (quality gate):**
+* **Бекенд (Checkstyle):**
   ```bash
-  cd core && mvn test checkstyle:check -DargLine="-Dnet.bytebuddy.experimental=true"
+  cd core && ./mvnw checkstyle:check
   ```
-* **Фронтенд (ESLint + 39 тестів у 10 файлах + TypeScript + Vite):**
+* **Фронтенд (ESLint + Vitest + TypeScript + Vite build):**
   ```bash
   cd frontend && npm run lint && npm test && npx tsc --noEmit && npm run build
   ```

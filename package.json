@@ -1,0 +1,14 @@
+{
+  "name": "tournado",
+  "private": true,
+  "description": "Monorepo task runner: one command for all automated tests (see docs/testing-strategy.md)",
+  "scripts": {
+    "test": "node scripts/test-all.mjs",
+    "test:core": "node scripts/test-all.mjs core",
+    "test:frontend": "node scripts/test-all.mjs frontend",
+    "test:ai": "node scripts/test-all.mjs ai"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}
