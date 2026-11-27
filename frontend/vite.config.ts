@@ -20,6 +20,10 @@ export default defineConfig({
   test: {
     globals: true,
     environment: 'jsdom',
-    setupFiles: ['./src/test/setup.ts']
+    setupFiles: ['./src/test/setup.ts'],
+    // Each worker is a separate process with its own jsdom. With Docker running, laptops with ~8 GB RAM
+    // crashed with ERR_IPC_CHANNEL_CLOSED when Vitest spawned one worker per CPU core. Two workers is stable.
+    maxWorkers: 2,
+    minWorkers: 1
   }
 })

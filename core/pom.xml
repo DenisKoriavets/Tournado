@@ -119,7 +119,10 @@
                 <artifactId>maven-surefire-plugin</artifactId>
                 <configuration>
                     <!-- Lets Mockito/ByteBuddy run on JDK 22+ (the project targets Java 21); harmless on JDK 21 -->
-                    <argLine>-Dnet.bytebuddy.experimental=true</argLine>
+                    <!-- Memory caps: by default the test JVM may take 1/4 of RAM, which crashed 8 GB laptops
+                         ("insufficient memory for the Java Runtime") while Docker Desktop and the app were running.
+                         TieredStopAtLevel=1 also cuts JIT memory and speeds up test startup. -->
+                    <argLine>-Dnet.bytebuddy.experimental=true -Xmx768m -XX:TieredStopAtLevel=1 -XX:+UseSerialGC</argLine>
                 </configuration>
             </plugin>
             <plugin>

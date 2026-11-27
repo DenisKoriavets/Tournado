@@ -33,3 +33,5 @@ venv/
 # Local uploads
 /data/uploads/
 core/data/uploads/
+hs_err_pid*.log
+replay_pid*.log
