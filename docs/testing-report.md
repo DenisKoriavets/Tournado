@@ -7,12 +7,12 @@
 
 | Suite | Tests | Result | Command |
 | :--- | :---: | :---: | :--- |
-| core: unit, `@WebMvcTest`, and **API integration on PostgreSQL 16 (Testcontainers)** | 296 (44 new) | green | `npm test` (or `npm run test:core`) |
-| frontend: Vitest + Testing Library | 113 (70 new) | green | `npm run test:frontend` |
+| core: unit, `@WebMvcTest`, and **API integration on PostgreSQL 16 (Testcontainers)** | 318 (44 new + 22 merged) | green | `npm test` (or `npm run test:core`) |
+| frontend: Vitest + Testing Library | 114 (71 new) | green | `npm run test:frontend` |
 | ai-service: pytest, mock provider | 35 | green | `npm run test:ai` |
-| **Total** | **444** | **green** | **`npm test` from the repo root** |
+| **Total** | **467** | **green** | **`npm test` from the repo root** |
 
-After merging `feat/bracket-engine` (check-in, bracket generation, standings, plus 22 Mockito/WebMvc tests by the Tournament Engine owner), core has **318** tests and the total is **466**, all green. Our US-28 and US-34 integration tests close real matches, so they also exercise the bracket branch's `BracketMatchEventListener` together with `MatchResultService`. No double advancement was observed.
+> Initial Practice 6 work on `6_testing_and_frontend_mvp` started with 444 tests (296 core + 113 frontend + 35 ai-service). Merging `feat/bracket-engine` (check-in, bracket generation, standings, plus 22 Mockito/WebMvc tests by the Tournament Engine owner) brought core to **318**, and adding the modal-stacking regression test from browser QA brought frontend to **114** (**467 total**, all green). Our US-28 and US-34 integration tests close real matches, so they also exercise the bracket branch's `BracketMatchEventListener` together with `MatchResultService`. No double advancement was observed.
 
 Additional gates:
 - `cd frontend && npm run lint && npx tsc --noEmit && npm run build` is green. **Lint was red before this practice**; see Bug 2.
@@ -81,24 +81,24 @@ Each production change below was made temporarily, tests were run, and the file 
 
 This run consumed V6 semifinal 1. Reset the DB with `docker compose down -v && docker compose up` before the live demo.
 
-### 2.2 UI checklist in the browser (to be ticked manually)
+### 2.2 UI checklist in the browser (verified 2026-11-27 against `docker compose up --build`)
 
-The checklist is run on `docker compose up --build` with a fresh DB and the V6 fixture "Dispute QA Arena — CS2".
+The checklist was executed end-to-end in a live Chromium session on `http://localhost:3000` and Mailpit (`http://localhost:8025`) with a fresh DB and the V6 fixture "Dispute QA Arena — CS2".
 
 | # | Check | Expected | Result |
 | :---: | :--- | :--- | :---: |
-| 1 | Open `http://localhost:3000` on desktop and at a 375 px width | Catalog renders, no horizontal scroll, header buttons reachable | ⬜ |
-| 2 | Log in by email, then open the magic link from Mailpit in a new tab | The new tab is logged in; the name is shown in the header | ⬜ |
-| 3 | As a guest, open an invite link `/join/inv_…`, click "Увійти…", log in via Mailpit | After login the invite opens again with "Підтвердити вступ" (US-05) | ⬜ |
-| 4 | Copy a tournament link in the drawer, open it in a private window | The same tournament opens for an anonymous visitor (US-11). A broken id shows "Турнір не знайдено". | ⬜ |
-| 5 | Open a Chess.com tournament → "Пул карт та правила" | No map pool, only the chess note (US-08) | ⬜ |
-| 6 | As `t.captain@test.tournado.ua`: menu "Матчі (QA)" → "Dispute QA — півфінал 1", enter `13.5` / `-1` / `5:5` | Errors under the fields, nothing sent (US-27 sc.2/sc.3) | ⬜ |
-| 7 | Same captain enters 13:9; `ct.captain@…` enters 9:13 in another browser | First captain sees "Очікується підтвердження суперником"; the second sees "Рахунки не збігаються" (US-27/28) | ⬜ |
-| 8 | Click "Відкрити спір": try a PDF, then upload `ai-service/resources/test_screenshot_1.jpg` | PDF is rejected with the formats message. JPG opens the dispute, and the room shows "Спір" (US-30). | ⬜ |
-| 9 | As `dispute.organizer@…`: open the tournament → "Спори" tab | Red counter 1 is visible before the tab is opened. The row is marked "Спір" (US-31). | ⬜ |
-| 10 | Open the dispute card | Screenshot, both captains' scores, «Підказка ШІ» with confidence %, and the nickname table are visible (US-32/33) | ⬜ |
-| 11 | Click "Затвердити підказку ШІ" and confirm | Success message; the row becomes "Опрацьовано" and the counter disappears (US-34, US-31 sc.2) | ⬜ |
-| 12 | Press Escape and click outside dialogs; check text contrast on dark backgrounds | Dialogs close; text is readable | ⬜ |
+| 1 | Open `http://localhost:3000` on desktop and at a 375 px width | Catalog renders, no horizontal scroll, header buttons reachable | ✅ *(re-verified after Bug 9 fix)* |
+| 2 | Log in by email, then open the magic link from Mailpit in a new tab | The new tab is logged in; the name is shown in the header | ✅ |
+| 3 | As a guest, open an invite link `/join/inv_…`, click "Увійти…", log in via Mailpit | After login the invite opens again with "Підтвердити вступ" (US-05) | ✅ *(re-verified after Bug 10 fix)* |
+| 4 | Copy a tournament link in the drawer, open it in a private window | The same tournament opens for an anonymous visitor (US-11). A broken id shows "Турнір не знайдено". | ✅ |
+| 5 | Open a Chess.com tournament → "Пул карт та правила" | No map pool, only the chess note (US-08) | ✅ |
+| 6 | As `t.captain@test.tournado.ua`: menu "Матчі (QA)" → "Dispute QA — півфінал 1", enter `13.5` / `-1` / `5:5` | Errors under the fields, nothing sent (US-27 sc.2/sc.3) | ✅ |
+| 7 | Same captain enters 13:9; `ct.captain@…` enters 9:13 in another browser | First captain sees "Очікується підтвердження суперником"; the second sees "Рахунки не збігаються" (US-27/28) | ✅ |
+| 8 | Click "Відкрити спір": try a PDF, then upload `ai-service/resources/test_screenshot_1.jpg` | PDF is rejected with the formats message. JPG opens the dispute, and the room shows "Спір" (US-30). | ✅ |
+| 9 | As `dispute.organizer@…`: open the tournament → "Спори" tab | Red counter 1 is visible before the tab is opened. The row is marked "Спір" (US-31). | ✅ |
+| 10 | Open the dispute card | Screenshot, both captains' scores, «Підказка ШІ» with confidence %, and the nickname table are visible (US-32/33) | ✅ |
+| 11 | Click "Затвердити підказку ШІ" and confirm | Success message; the row becomes "Опрацьовано" and the counter disappears (US-34, US-31 sc.2). *(Note: confirmation dialog opens below the scroll fold inside the modal.)* | ✅ |
+| 12 | Press Escape and click outside dialogs; check text contrast on dark backgrounds | Dialogs close; text is readable | ✅ |
 
 ## 3. Real bugs found and fixed
 
@@ -137,10 +137,21 @@ The checklist is run on `docker compose up --build` with a fresh DB and the V6 f
 - *Why it went unnoticed:* our frontend guard (Bug 8 below) hid it from the UI.
 - *Fix:* the chess pool is now empty. A new `TournamentMapPoolIntegrationTest` was confirmed red on the old code. Chess matches already skipped the ban phase, so nothing else depended on the pool.
 
+**Bug 9 (frontend UI, checklist #1): mobile 375 px header overflow and brand overlap.**
+- *Found by:* live browser inspection of `http://localhost:3000` at `375 × 812`.
+- *Symptom:* on a 375 px viewport, the `"Створити турнір"` button extended to `x=326..440px` past the right edge and clipped to `"+ С"`. A tighter-padding pass also exposed `"Мої команди"` overlapping the last letter of `"TOURNADO"`.
+- *Fix:* updated `frontend/src/App.tsx` header to compact mobile spacing (`px-2.5 sm:px-6 lg:px-8`), hidden `"Esports Platform"` subtitle on `<640px`, shorter `"Створити"` label on mobile, and tighter button padding. Re-verified in browser at `375 × 812`: right edge sits at `357.43px` (`<= 367.43px` container) with a `27px` gap after the brand wordmark.
+
+**Bug 10 (frontend UI, US-05 / checklist #3): `AuthModal` opened behind `JoinInviteModal`.**
+- *Found by:* live browser verification of `/join/inv_...` as an unauthenticated guest.
+- *Symptom:* clicking `"Увійти для підтвердження вступу"` opened `"Вхід до Tournado"` (`AuthModal`) behind `"Запрошення до команди"` (`JoinInviteModal`), because both shared `z-50` and `AuthModal` appeared earlier in DOM order inside `App.tsx`. Pointer clicks on `"Отримати Magic Link"` failed with `ELEMENT_OCCLUDED`.
+- *Fix:* raised `AuthModal` overlay stacking to `z-[70]` in `frontend/src/components/AuthModal.tsx`, moved `<AuthModal />` to the end of JSX in `frontend/src/App.tsx`, and added a stacking regression test in `frontend/src/App.test.tsx`. Re-verified in live browser with real pointer clicks and `POST /api/v1/auth/email/request-link` returning `200 OK`.
+
 **Smaller fixes:**
 - **Bug 8, US-08 UI guard:** a chess tournament displayed the backend's time-control list as a map pool. The guard is kept for legacy data created before Bug 7 was fixed.
 - **Deployment:** nginx's 1 MB default body limit would have rejected dispute screenshots between 1 and 10 MB. Added `client_max_body_size 13m`, and the client maps `HTTP_413` to a clear message.
 - **Race condition:** two quick clicks on tournaments could show the first tournament. Only the latest request now fills the drawer.
+- **Node v25 test-runner compatibility (`frontend/src/test/setup.ts`):** running Vitest under Node v25.6.0 on Windows initially broke 7 tests because Node injected an incomplete `globalThis.localStorage` without `.clear()`. Added a `Storage.prototype` / `localStorage` polyfill in `setup.ts` (preserving `vi.spyOn` hooks).
 
 ### Known issues, not fixed in this iteration
 

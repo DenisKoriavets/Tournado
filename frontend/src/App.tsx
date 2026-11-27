@@ -316,18 +316,18 @@ function AppShell() {
 
       {/* Top Navigation Bar */}
       <header className="sticky top-0 z-40 bg-[#0E121A]/90 backdrop-blur-md border-b border-[#1E2536]">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between gap-4">
+        <div className="max-w-7xl mx-auto px-2.5 sm:px-6 lg:px-8 h-16 flex items-center justify-between gap-2 sm:gap-4">
           {/* Brand Logo & Navigation */}
-          <div className="flex items-center gap-6">
-            <div className="flex items-center gap-2.5">
-              <div className="w-9 h-9 rounded-xl bg-orange-500 flex items-center justify-center text-white shadow-lg shadow-orange-500/25">
-                <TrophyIcon className="w-5 h-5" />
+          <div className="flex items-center gap-4 sm:gap-6 min-w-0">
+            <div className="flex items-center gap-1.5 sm:gap-2.5 shrink-0">
+              <div className="w-7 h-7 sm:w-9 sm:h-9 rounded-xl bg-orange-500 flex items-center justify-center text-white shadow-lg shadow-orange-500/25">
+                <TrophyIcon className="w-4 h-4 sm:w-5 sm:h-5" />
               </div>
               <div className="flex flex-col">
-                <span className="font-extrabold text-lg tracking-tight text-white leading-none">
+                <span className="font-extrabold text-sm sm:text-lg tracking-tight text-white leading-none">
                   TOURNADO
                 </span>
-                <span className="text-[10px] font-mono tracking-widest text-orange-400 font-semibold uppercase mt-0.5">
+                <span className="hidden sm:block text-[10px] font-mono tracking-widest text-orange-400 font-semibold uppercase mt-0.5">
                   Esports Platform
                 </span>
               </div>
@@ -389,11 +389,11 @@ function AppShell() {
           </div>
 
           {/* Header Action Buttons */}
-          <div className="flex items-center gap-2.5">
+          <div className="flex items-center gap-1.5 sm:gap-2.5 shrink-0">
             <button
               type="button"
               onClick={handleOpenTeamsClick}
-              className="md:hidden px-3 py-2 rounded-xl bg-[#181F2E] border border-[#263147] text-slate-200 text-xs font-semibold flex items-center gap-1.5 cursor-pointer"
+              className="md:hidden p-1.5 sm:px-3 sm:py-2 rounded-xl bg-[#181F2E] border border-[#263147] text-slate-200 text-xs font-semibold flex items-center gap-1.5 cursor-pointer shrink-0"
               aria-label="Мої команди"
             >
               <UsersIcon className="w-4 h-4 text-orange-400" />
@@ -401,19 +401,19 @@ function AppShell() {
             </button>
 
             {user ? (
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-1.5 sm:gap-2">
                 <button
                   type="button"
                   onClick={() => setIsProfileOpen(true)}
-                  className="px-3 py-2 rounded-xl bg-[#181F2E] hover:bg-[#20293D] border border-[#263147] text-slate-100 text-xs font-semibold transition flex items-center gap-2 cursor-pointer"
+                  className="px-2 sm:px-3 py-1.5 sm:py-2 rounded-xl bg-[#181F2E] hover:bg-[#20293D] border border-[#263147] text-slate-100 text-xs font-semibold transition flex items-center gap-1.5 sm:gap-2 cursor-pointer"
                 >
-                  <UserIcon className="w-4 h-4 text-orange-400" />
-                  <span className="max-w-[130px] truncate">{user.displayName}</span>
+                  <UserIcon className="w-4 h-4 text-orange-400 shrink-0" />
+                  <span className="max-w-[70px] sm:max-w-[130px] truncate">{user.displayName}</span>
                 </button>
                 <button
                   type="button"
                   onClick={handleLogout}
-                  className="p-2 rounded-xl bg-[#121620] hover:bg-slate-800 border border-[#1E2536] text-slate-400 hover:text-white transition cursor-pointer"
+                  className="p-1.5 sm:p-2 rounded-xl bg-[#121620] hover:bg-slate-800 border border-[#1E2536] text-slate-400 hover:text-white transition cursor-pointer shrink-0"
                   aria-label="Вийти з акаунту"
                   title="Вийти"
                 >
@@ -425,9 +425,9 @@ function AppShell() {
                 <button
                   type="button"
                   onClick={() => openAuthModal()}
-                  className="px-3.5 py-2 rounded-xl bg-[#181F2E] hover:bg-[#20293D] border border-[#263147] text-slate-100 text-xs font-bold transition flex items-center gap-1.5 cursor-pointer"
+                  className="px-2 sm:px-3.5 py-1.5 sm:py-2 rounded-xl bg-[#181F2E] hover:bg-[#20293D] border border-[#263147] text-slate-100 text-xs font-bold transition flex items-center gap-1 sm:gap-1.5 cursor-pointer shrink-0"
                 >
-                  <LogInIcon className="w-4 h-4 text-orange-400" />
+                  <LogInIcon className="w-4 h-4 text-orange-400 shrink-0" />
                   <span>Увійти</span>
                 </button>
               )
@@ -436,10 +436,12 @@ function AppShell() {
             <button
               type="button"
               onClick={handleCreateTournamentClick}
-              className="px-4 py-2 rounded-xl bg-orange-500 hover:bg-orange-400 text-white text-xs font-bold transition flex items-center gap-2 shadow-lg shadow-orange-500/25 hover:scale-[1.02] active:scale-[0.98] cursor-pointer"
+              aria-label="Створити турнір"
+              className="px-2 sm:px-4 py-1.5 sm:py-2 rounded-xl bg-orange-500 hover:bg-orange-400 text-white text-xs font-bold transition flex items-center gap-1 sm:gap-2 shadow-lg shadow-orange-500/25 hover:scale-[1.02] active:scale-[0.98] cursor-pointer shrink-0 whitespace-nowrap"
             >
-              <PlusIcon className="w-4 h-4" />
-              <span>Створити турнір</span>
+              <PlusIcon className="w-4 h-4 shrink-0" />
+              <span className="hidden sm:inline">Створити турнір</span>
+              <span className="sm:hidden">Створити</span>
             </button>
           </div>
         </div>
@@ -592,13 +594,6 @@ function AppShell() {
         </div>
       </footer>
 
-      {/* Auth Modal */}
-      <AuthModal
-        isOpen={isAuthModalOpen}
-        onClose={closeAuthModal}
-        promptMessage={authModalPrompt}
-      />
-
       {/* Profile Modal */}
       <ProfileModal
         isOpen={isProfileOpen}
@@ -638,6 +633,13 @@ function AppShell() {
 
       {/* Match Room Modal (Ready Check / Map Veto) */}
       <MatchRoomModal matchId={viewingMatchId} onClose={() => setViewingMatchId(null)} />
+
+      {/* Auth Modal (rendered last with z-[70] so it always layers above JoinInviteModal / Drawers) */}
+      <AuthModal
+        isOpen={isAuthModalOpen}
+        onClose={closeAuthModal}
+        promptMessage={authModalPrompt}
+      />
     </div>
   )
 }

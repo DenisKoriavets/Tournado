@@ -101,4 +101,34 @@ describe('App routing', () => {
     await waitFor(() => expect(teamsApi.previewTeamInvite).toHaveBeenCalledWith('inv_saved'))
     expect(await screen.findByRole('button', { name: /Підтвердити вступ до команди/i })).toBeInTheDocument()
   })
+
+  it('opens AuthModal above JoinInviteModal (z-[70] over z-50) when a guest clicks login from /join/:token', async () => {
+    vi.spyOn(authApi, 'getCurrentUser').mockRejectedValue(new Error('Unauthorized'))
+    vi.spyOn(teamsApi, 'previewTeamInvite').mockResolvedValue({
+      token: 'inv_demo',
+      teamId: 'team-1',
+      teamName: 'Kyiv Mohyla Five',
+      discipline: 'CS2',
+      memberCount: 3,
+      maxMembers: 5,
+      isFull: false
+    })
+    window.history.replaceState({}, '', '/join/inv_demo')
+
+    render(<App />)
+
+    const loginButton = await screen.findByRole('button', { name: /Увійти для підтвердження вступу/i })
+    loginButton.click()
+
+    const authHeading = await screen.findByRole('heading', { name: /Вхід до Tournado/i })
+    const inviteHeading = screen.getByRole('heading', { name: /Запрошення до команди/i })
+    const authOverlay = authHeading.closest('.fixed')
+    const inviteOverlay = inviteHeading.closest('.fixed')
+
+    expect(authOverlay).toHaveClass('z-[70]')
+    expect(inviteOverlay).toHaveClass('z-50')
+    expect(
+      inviteOverlay!.compareDocumentPosition(authOverlay!) & Node.DOCUMENT_POSITION_FOLLOWING
+    ).toBeTruthy()
+  })
 })
