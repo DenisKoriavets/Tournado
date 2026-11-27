@@ -104,7 +104,7 @@ const AuthModalContent: React.FC<Omit<AuthModalProps, 'isOpen'>> = ({
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center p-4 overflow-y-auto bg-black/75 backdrop-blur-sm animate-fadeIn"
+      className="fixed inset-0 z-[70] flex items-center justify-center p-4 overflow-y-auto bg-black/75 backdrop-blur-sm animate-fadeIn"
       role="dialog"
       aria-modal="true"
       aria-labelledby="auth-modal-title"

@@ -1,208 +1,186 @@
-# Testing Report — Practice 6
+# Звіт з тестування (Практична 6)
 
-> **Branch:** `6_testing_and_frontend_mvp` · **Date:** 2026-11-26 · **Strategy:** [`docs/testing-strategy.md`](testing-strategy.md)
-> **Prompts:** [`6.1`](../prompts/6.1_testing_strategy.md) (strategy) · [`6.2`](../prompts/6.2_test_generation.md) (generation) · [`6.3`](../prompts/6.3_qa_audit_and_debugging.md) (audit and debugging)
+> **Гілка:** `fix/ui-qa-fixes-and-testing-report` (для `main`) | **Дата:** 27.11.2026 | **Стратегія:** [`docs/testing-strategy.md`](testing-strategy.md)
+> **Промпти:** [`6.1`](../prompts/6.1_testing_strategy.md) (стратегія) | [`6.2`](../prompts/6.2_test_generation.md) (генерація тестів) | [`6.3`](../prompts/6.3_qa_audit_and_debugging.md) (QA-аудит і дебаг)
 
-## 0. Summary
+## 0. Коротко про прогін
 
-| Suite | Tests | Result | Command |
+| Частина | Кількість тестів | Статус | Команда |
 | :--- | :---: | :---: | :--- |
-| core: unit, `@WebMvcTest`, and **API integration on PostgreSQL 16 (Testcontainers)** | 296 (44 new) | green | `npm test` (or `npm run test:core`) |
-| frontend: Vitest + Testing Library | 113 (70 new) | green | `npm run test:frontend` |
-| ai-service: pytest, mock provider | 35 | green | `npm run test:ai` |
-| **Total** | **444** | **green** | **`npm test` from the repo root** |
+| core: unit, `@WebMvcTest` і **API-інтеграція на PostgreSQL 16 (Testcontainers)** | 318 (44 нових + 22 після мерджу) | пройдено | `npm test` (або `npm run test:core`) |
+| frontend: Vitest + Testing Library | 114 (71 нових) | пройдено | `npm run test:frontend` |
+| ai-service: pytest, mock-провайдер | 35 | пройдено | `npm run test:ai` |
+| **Разом** | **467** | **усі зелені** | **`npm test` з кореня репозиторію** |
 
-After merging `feat/bracket-engine` (check-in, bracket generation, standings, plus 22 Mockito/WebMvc tests by the Tournament Engine owner), core has **318** tests and the total is **466**, all green. Our US-28 and US-34 integration tests close real matches, so they also exercise the bracket branch's `BracketMatchEventListener` together with `MatchResultService`. No double advancement was observed.
+Спочатку в роботі над Практичною 6 (гілка `6_testing_and_frontend_mvp`) було 444 тести (296 у core, 113 на фронтенді та 35 у ai-service). Після мерджу `feat/bracket-engine` (чек-ін, генерація сітки, таблиця результатів і ще 22 Mockito/WebMvc-тести від розробника турнірного рушія) кількість у core зросла до 318. Після ручного прогону в браузері додали ще 1 регресійний тест на фронтенді (разом 114), тож зараз маємо **467 зелених тестів**. Наші інтеграційні тести US-28 і US-34 реально закривають матчі, тому заодно перевіряють спільну роботу `BracketMatchEventListener` та `MatchResultService`. Подвійного просування переможців не зафіксовано.
 
-Additional gates:
-- `cd frontend && npm run lint && npx tsc --noEmit && npm run build` is green. **Lint was red before this practice**; see Bug 2.
-- Each suite was run at least twice in a row with no state leaking between runs. Core truncates every table before each test.
+Додаткові перевірки:
+- `cd frontend && npm run lint && npx tsc --noEmit && npm run build` проходить без жодної помилки й без попереджень (до цієї практики лінтер на `main` падав, див. Баг 2).
+- `cd core && ./mvnw checkstyle:check` проходить з 0 порушень.
+- Усі набори запускали мінімум двічі поспіль. Стан між запусками не протікає, бо перед кожним інтеграційним тестом у core таблиці БД очищаються через `TRUNCATE`.
 
-## 1. Stories and scenarios covered by automated tests
+## 1. Які історії та сценарії покриті автотестами
 
-**Backend: API integration.** Each test sends a real HTTP request with a real JWT and runs through security, controller, service and JPA against a real PostgreSQL 16 container. Nothing is mocked.
+**Бекенд (API-інтеграція).** Кожен тест надсилає реальний HTTP-запит зі справжнім JWT-токеном через фільтри безпеки, контролер, сервіс і JPA у реальний контейнер PostgreSQL 16. Усередині нічого не замокано.
 
-| Story | Test class | Scenarios |
+| Історія | Клас тестів | Що саме перевірено |
 | :--- | :--- | :--- |
-| **US-12** Team registration | `tournaments/integration/TeamRegistrationIntegrationTest` (10) | sc.1–sc.6. Checklist: missing Steam ID → 422 `MISSING_GAME_IDENTIFIER`, wrong discipline → 422, non-captain → 403, anonymous → 401. |
-| **US-05** Join by invite (+ **US-14** sc.2/sc.3) | `teams/integration/TeamJoinByInviteIntegrationTest` (8) | sc.1–sc.5 (full roster, already a member, unknown/deactivated/expired token, roster locked after deadline). Roster still open before the deadline. Anonymous → 401. |
-| **US-27** Score entry + **US-28** auto-advance | `matches/integration/MatchScoreSubmissionIntegrationTest` (17) | US-27: sc.1–sc.4 (invalid values `-1`, `"abc"`, `13.5`, missing; tie; chess). Checklist: second submission → 409; outsider or non-captain teammate → 403; not in progress → 409; unknown match → 404; anonymous → 401; checklist 5, the opponent's room exposes no score field. US-28: sc.1–sc.4 (winner moves to the correct slot of the next round; one report or a mismatch does not advance; final completes the tournament). |
-| **US-34** Dispute resolution | `disputes/integration/DisputeResolutionIntegrationTest` (7) | sc.1 AI hint approved → winner advances; sc.2 manual 9:13 → higher score wins; sc.3 AI unrecognised → 422; sc.4 tie → 422. Checklist: missing scores → 400, captain instead of organizer → 403, second ruling → 409. |
-| **US-08** Map pool | `tournaments/integration/TournamentMapPoolIntegrationTest` (2) | sc.1 CS2 gets the standard pool, stored in the DB; sc.2 Chess.com gets no pool. |
+| **US-12** Заявка команди на турнір | `tournaments/integration/TeamRegistrationIntegrationTest` (10) | Сценарії 1..6. По чеклісту: немає Steam ID (422 `MISSING_GAME_IDENTIFIER`), інша дисципліна (400), подає не капітан (403), анонім (401). |
+| **US-05** Вступ за інвайтом (+ **US-14** сц. 2, 3) | `teams/integration/TeamJoinByInviteIntegrationTest` (8) | Сценарії 1..5: повний склад, гравець уже в команді, невідомий/деактивований/прострочений токен, блокування після дедлайну ростеру. До дедлайну вступ ще працює. Анонім отримує 401. |
+| **US-27** Введення рахунку + **US-28** автопросування | `matches/integration/MatchScoreSubmissionIntegrationTest` (17) | US-27 сц. 1..4: некоректні числа (`-1`, `"abc"`, `13.5`, порожньо), нічия, шахи. Повторна відправка (409), сторонній або некапітан команди (403), матч не в статусі `IN_PROGRESS` (409), неіснуючий матч (404), анонім (401), в кімнаті суперника не світиться поданий рахунок. US-28 сц. 1..4: переможець потрапляє в правильний слот наступного раунду, одна заявка чи розбіжність не рухають сітку, фінал завершує турнір. |
+| **US-34** Вирішення спорів | `disputes/integration/DisputeResolutionIntegrationTest` (7) | Сценарій 1: затверджено підказку ШІ, переможець іде далі. Сценарій 2: ручний рахунок 9:13. Сценарій 3: ШІ не розпізнав скріншот (422). Сценарій 4: нічия (422). Також порожні поля (400), капітан замість організатора (403), повторне рішення (409). |
+| **US-08** Пул карт | `tournaments/integration/TournamentMapPoolIntegrationTest` (2) | Сценарій 1: для CS2 створюється стандартний пул карт у БД. Сценарій 2: для Chess.com пул карт порожній. |
 
-**Frontend: component tests.** HTTP is replaced only at the `src/api/*` boundary.
+**Фронтенд (компонентні тести).** HTTP-виклики підміняються тільки на рівні клієнтських функцій у `src/api/*`.
 
-| Story | Test file | Scenarios |
+| Історія | Файл тестів | Що саме перевірено |
 | :--- | :--- | :--- |
-| US-27 / US-28 | `ScoreEntryForm.test.tsx`, `utils/score.test.ts`, `MatchRoomModal.test.tsx` | sc.1–sc.4. Opponent's score is never shown. Mismatch → "Відкрити спір". Completed → winner. 409 handling. Non-captain sees no form. |
-| US-30 | `OpenDisputeDialog.test.tsx`, `api/http.test.ts`, `MatchRoomModal.test.tsx` | sc.1–sc.4, more than 10 MB rejected, nginx 413, FormData upload, DISPUTED status in the room. |
-| US-31 | `TournamentDisputesTab.test.tsx`, `TournamentDrawer.test.tsx` | sc.1–sc.3. Click opens the card. Counter visible before the tab is opened. Hidden from non-organizers. |
-| US-32 / US-33 / US-34 | `DisputeCardModal.test.tsx` | US-32 sc.1–sc.3 and polling while PENDING. US-33 sc.1–sc.3. US-34 sc.1–sc.4, organizer-only, read-only after resolve. |
-| US-05 | `JoinInviteModal.test.tsx`, `utils/pendingInvite.test.ts`, `App.test.tsx` | sc.1–sc.5 with Ukrainian messages per error code. The invite survives login. |
-| US-11 | `utils/route.test.ts`, `App.test.tsx` | sc.2: anonymous deep link `/tournaments/{id}`. Unknown id shows "Турнір не знайдено". |
-| US-08 | `TournamentDrawer.test.tsx` | Chess tournament shows no map pool. |
+| US-27 / US-28 | `ScoreEntryForm.test.tsx`, `utils/score.test.ts`, `MatchRoomModal.test.tsx` | Сценарії 1..4. Рахунок суперника не показується. Розбіжність веде до кнопки "Відкрити спір". У завершеному матчі видно переможця. Обробка 409. Некапітан не бачить форми вводу. |
+| US-30 | `OpenDisputeDialog.test.tsx`, `api/http.test.ts`, `MatchRoomModal.test.tsx` | Сценарії 1..4, відмова на файлах понад 10 МБ, обробка відповіді nginx 413, завантаження через `FormData`, статус `DISPUTED` у кімнаті матчу. |
+| US-31 | `TournamentDisputesTab.test.tsx`, `TournamentDrawer.test.tsx` | Сценарії 1..3. Клік відкриває картку спору. Червоний лічильник видно ще до переходу на вкладку. Стороннім користувачам вкладка недоступна. |
+| US-32 / US-33 / US-34 | `DisputeCardModal.test.tsx` | US-32 сц. 1..3 і опитування статусу поки ШІ думає (`PENDING`). US-33 сц. 1..3. US-34 сц. 1..4, кнопки лише для організатора, режим тільки для читання після вирішення спору. |
+| US-05 | `JoinInviteModal.test.tsx`, `utils/pendingInvite.test.ts`, `App.test.tsx` | Сценарії 1..5 з українськими текстами під кожен код помилки. Інвайт не губиться після авторизації, а модалка входу перекриває вікно інвайту зверху. |
+| US-11 | `utils/route.test.ts`, `App.test.tsx` | Сценарій 2: публічне посилання `/tournaments/{id}` відкривається без входу. Неіснуючий id показує "Турнір не знайдено". |
+| US-08 | `TournamentDrawer.test.tsx` | Для шахового турніру блок пулу карт не показується. |
 
-### "Break the code on purpose" (mutation check)
+### Перевірка прийомом "зламай код навмисно" (mutation check)
 
-Each production change below was made temporarily, tests were run, and the file was restored.
+У кожному рядку ми тимчасово ламали умову в робочому коді, проганяли тести, фіксували падіння і повертали все назад.
 
-| # | Mutation | Caught by (red) |
+| # | Що зламали в коді | Який тест став червоним |
 | :---: | :--- | :--- |
-| 1 | `RegistrationService`: `activeCount >= slotLimit` → `>` | US-12 sc.2, sc.6 (expected 409, got 201) |
-| 2 | `POST /register` returns 200 instead of 201 | US-12 sc.1, sc.5, sc.6 |
-| 3 | `TeamInviteService`: duplicate-member guard removed | US-05 sc.3 (expected 409, got 500) |
-| 4 | `MatchResultService`: winner written to the wrong bracket slot | US-28 sc.1 (`team2_id` of the final) |
-| 5 | `utils/score.ts`: tie check removed | US-27 sc.3 (validator and form), US-34 sc.4 |
-| 6 | Drawer shows "Спори" to any logged-in user | US-31 checklist 5 |
-| 7 | "Затвердити підказку ШІ" ignores `canApproveAiSuggestion` | US-34 sc.3 / US-32 sc.2 |
-| 8 | Screenshot 10 MB limit removed | US-30 checklist 4 |
-| 9 | Bugs 6 and 7 temporarily reverted to the original code | US-12 discipline test (expected 400, got 422) and US-08 sc.2 (chess pool not empty) |
+| 1 | У `RegistrationService` замінили `activeCount >= slotLimit` на `>` | US-12 сц. 2 і сц. 6 (очікувався статус 409, прийшов 201) |
+| 2 | `POST /register` повернув 200 замість 201 | US-12 сц. 1, сц. 5 і сц. 6 |
+| 3 | У `TeamInviteService` прибрали перевірку на вже існуючого учасника | US-05 сц. 3 (очікувався статус 409, впало з 500) |
+| 4 | У `MatchResultService` записали переможця не в той слот сітки | US-28 сц. 1 (`team2_id` у фіналі) |
+| 5 | У `utils/score.ts` прибрали заборону нічиєї | US-27 сц. 3 (валідатор і форма) та US-34 сц. 4 |
+| 6 | Вкладка "Спори" в drawer почала показуватися будь-якому залогіненому | US-31 чекліст 5 |
+| 7 | Кнопка "Затвердити підказку ШІ" перестала зважати на `canApproveAiSuggestion` | US-34 сц. 3 і US-32 сц. 2 |
+| 8 | Прибрали обмеження 10 МБ на скріншот | US-30 чекліст 4 |
+| 9 | Тимчасово повернули стару логіку з Багів 6 і 7 | Тест дисципліни в US-12 (422 замість 400) і US-08 сц. 2 (шахи мали пул карт) |
 
-## 2. Manual smoke checklist (UI)
+## 2. Ручне тестування (Smoke checklist)
 
-### 2.1 End-to-end API smoke on the running stack (done, 2026-11-26)
+### 2.1 Наскрізний прогін API на піднятому Docker-стеку (26.11.2026)
 
-`docker compose up --build` was run with a fresh DB (`.env` copied from `.env.example`, `AI_PROVIDER=mock`).
-- **Service health:** all 5 containers are up; Flyway applied V1–V6; core and ai-service health checks are `UP`.
-- **Frontend through nginx:** `/` returns 200 and the deep link `/tournaments/{id}` returns 200 (SPA fallback); the nginx `/api` proxy returns 200.
-- **Demo scenario:** run through nginx (`:3000`) exactly like the browser does, with the V6 accounts logging in through real magic links from Mailpit:
+Стек запускали командою `docker compose up --build` на чистій базі даних (`.env` з `.env.example`, `AI_PROVIDER=mock`).
+- Усі 5 контейнерів піднялися, Flyway накатив міграції V1..V6, healthcheck для core та ai-service відповідає `UP`.
+- Nginx на порту 3000 віддає `/` і `/tournaments/{id}` зі статусом 200 (SPA fallback) та нормально проксує `/api`.
+- Через nginx (`:3000`) пройшли весь демо-сценарій з реальними magic-лінк листами в Mailpit:
 
-| Step | Result |
+| Крок | Що вийшло |
 | :--- | :--- |
-| Login `t.captain`, `ct.captain`, `dispute.organizer` via magic link | OK (`/auth/me` returns the display names) |
-| Score `13.5` (Bug 1) | **400 VALIDATION_FAILED** |
-| Captain 1 submits 13:9 → captain 2 submits 9:13 | `bothSubmitted=false`, then `bothSubmitted=true, scoresMatched=false` |
-| Dispute with `test_screenshot_1.jpg` (multipart through nginx) | 201 `OPEN`, AI `PENDING`; a second dispute gets **409** |
-| Organizer dispute list | `openDisputesCount = 1` |
-| Dispute card after the async AI analysis | `SUCCESS 13:9`, confidence 0.985, all 10 nicknames found in the locked rosters; screenshot served as `image/jpeg` |
-| Captain tries to resolve | **403 AUTH_FORBIDDEN** |
-| Organizer approves the AI hint | 200 `RESOLVED`, match `COMPLETED`, winner placed in the final's team1 slot |
-| New Chess.com tournament (Bug 7) | 201, `mapPool = []` |
+| Вхід `t.captain`, `ct.captain`, `dispute.organizer` через Mailpit | Працює, `/auth/me` повертає потрібні імена |
+| Спроба відправити рахунок `13.5` (Баг 1) | Повернуло **400 VALIDATION_FAILED** |
+| Перший капітан подав 13:9, другий подав 9:13 | Спочатку `bothSubmitted=false`, потім `bothSubmitted=true, scoresMatched=false` |
+| Відкриття спору з `test_screenshot_1.jpg` через nginx | 201 `OPEN`, статус ШІ `PENDING`; повторний спір відхилено з **409** |
+| Список спорів в організатора | `openDisputesCount = 1` |
+| Картка спору після фонового аналізу ШІ | `SUCCESS 13:9`, впевненість 0.985, знайдені всі 10 ніків із зафіксованих ростерів; картинка віддається як `image/jpeg` |
+| Спроба капітана вирішити спір | **403 AUTH_FORBIDDEN** |
+| Організатор підтвердив підказку ШІ | 200 `RESOLVED`, матч перейшов у `COMPLETED`, переможець став у `team1` фіналу |
+| Створення нового турніру з Chess.com (Баг 7) | 201, `mapPool = []` |
 
-This run consumed V6 semifinal 1. Reset the DB with `docker compose down -v && docker compose up` before the live demo.
+### 2.2 Перевірка інтерфейсу в живому браузері (27.11.2026)
 
-### 2.2 UI checklist in the browser (to be ticked manually)
+Усі 12 пунктів пройшли в живому браузері на `http://localhost:3000` і Mailpit (`http://localhost:8025`) на чистій БД з тестовим турніром V6 "Dispute QA Arena" (CS2). Два знайдені під час перевірки баги (Баги 9 і 10) відразу полагодили і перевірили ще раз.
 
-The checklist is run on `docker compose up --build` with a fresh DB and the V6 fixture "Dispute QA Arena — CS2".
-
-| # | Check | Expected | Result |
+| # | Що перевіряли | Очікуваний результат | Статус |
 | :---: | :--- | :--- | :---: |
-| 1 | Open `http://localhost:3000` on desktop and at a 375 px width | Catalog renders, no horizontal scroll, header buttons reachable | ⬜ |
-| 2 | Log in by email, then open the magic link from Mailpit in a new tab | The new tab is logged in; the name is shown in the header | ⬜ |
-| 3 | As a guest, open an invite link `/join/inv_…`, click "Увійти…", log in via Mailpit | After login the invite opens again with "Підтвердити вступ" (US-05) | ⬜ |
-| 4 | Copy a tournament link in the drawer, open it in a private window | The same tournament opens for an anonymous visitor (US-11). A broken id shows "Турнір не знайдено". | ⬜ |
-| 5 | Open a Chess.com tournament → "Пул карт та правила" | No map pool, only the chess note (US-08) | ⬜ |
-| 6 | As `t.captain@test.tournado.ua`: menu "Матчі (QA)" → "Dispute QA — півфінал 1", enter `13.5` / `-1` / `5:5` | Errors under the fields, nothing sent (US-27 sc.2/sc.3) | ⬜ |
-| 7 | Same captain enters 13:9; `ct.captain@…` enters 9:13 in another browser | First captain sees "Очікується підтвердження суперником"; the second sees "Рахунки не збігаються" (US-27/28) | ⬜ |
-| 8 | Click "Відкрити спір": try a PDF, then upload `ai-service/resources/test_screenshot_1.jpg` | PDF is rejected with the formats message. JPG opens the dispute, and the room shows "Спір" (US-30). | ⬜ |
-| 9 | As `dispute.organizer@…`: open the tournament → "Спори" tab | Red counter 1 is visible before the tab is opened. The row is marked "Спір" (US-31). | ⬜ |
-| 10 | Open the dispute card | Screenshot, both captains' scores, «Підказка ШІ» with confidence %, and the nickname table are visible (US-32/33) | ⬜ |
-| 11 | Click "Затвердити підказку ШІ" and confirm | Success message; the row becomes "Опрацьовано" and the counter disappears (US-34, US-31 sc.2) | ⬜ |
-| 12 | Press Escape and click outside dialogs; check text contrast on dark backgrounds | Dialogs close; text is readable | ⬜ |
+| 1 | Відкрити `http://localhost:3000` на десктопі та при ширині 375 px | Каталог нормально рендериться, без горизонтального скролу, кнопки в шапці клікабельні | ✅ *(перевірено повторно після фіксу Багу 9)* |
+| 2 | Увійти через пошту і відкрити magic link з Mailpit у новій вкладці | Нова вкладка залогінена, ім'я показується в шапці | ✅ |
+| 3 | Незалогіненим відкрити `/join/inv_...`, натиснути "Увійти...", пройти вхід через Mailpit | Після входу інвайт відкривається знову з кнопкою "Підтвердити вступ" (US-05) | ✅ *(перевірено повторно після фіксу Багу 10)* |
+| 4 | Скопіювати посилання на турнір із панелі деталей і відкрити в інкогніто | Турнір бачить і анонімний гість (US-11). Битий id показує "Турнір не знайдено". | ✅ |
+| 5 | Відкрити турнір із Chess.com у вкладці "Пул карт та правила" | Пулу карт немає, лише примітка для шахів (US-08) | ✅ |
+| 6 | Під `t.captain@test.tournado.ua` зайти в меню "Матчі (QA)" -> півфінал 1, ввести `13.5`, `-1`, `5:5` | Під полями з'являються помилки валідації, запит на бекенд не йде (US-27 сц. 2, 3) | ✅ |
+| 7 | Той самий капітан вводить 13:9, а `ct.captain@...` в іншій сесії вводить 9:13 | Перший бачить "Очікується підтвердження суперником", другий бачить "Рахунки не збігаються" (US-27/28) | ✅ |
+| 8 | Натиснути "Відкрити спір": спершу підсунути PDF, потім `ai-service/resources/test_screenshot_1.jpg` | На PDF показується помилка форматів, JPG створює спір і кімната переходить у "Спір" (US-30) | ✅ |
+| 9 | Під `dispute.organizer@...` відкрити турнір і подивитися на вкладку "Спори" | Червоний лічильник `1` видно ще до кліку на вкладку, рядок матчу має мітку "Спір" (US-31) | ✅ |
+| 10 | Відкрити картку спору | Видно скріншот, рахунки обох капітанів, блок "Підказка ШІ" з відсотками та таблицю нікнеймів (US-32/33) | ✅ |
+| 11 | Натиснути "Затвердити підказку ШІ" й підтвердити | Повідомлення про успіх, статус змінюється на "Опрацьовано", лічильник зникає (US-34, US-31 сц. 2). *(Нюанс: діалог підтвердження рендериться внизу прокрутки модалки.)* | ✅ |
+| 12 | Перевірити закриття вікон по Escape і кліку повз, а також читабельність тексту | Модалки й drawer закриваються, текст на темному фоні читається чітко | ✅ |
 
-## 3. Real bugs found and fixed
+## 3. Реальні баги, які знайшли та полагодили
 
-**Bug 1 (backend, US-27 AC2): a fractional score was silently accepted.**
-- *Found by:* the integration test `US-27 sc.2` with payload `{"team1Score": 13.5}`. It expected 400 but got **200**, and `13` was stored.
-- *Cause:* Jackson's default `ACCEPT_FLOAT_AS_INT` truncates `13.5` to `Integer 13` before Bean Validation runs, so `@Min/@Max` never see the fraction.
-- *Fix:* `spring.jackson.deserialization.accept-float-as-int: false` in `core/src/main/resources/application.yml`. It applies to every integer field of the API, including slot limits and dispute rulings. The test was kept unchanged.
+**Баг 1 (бекенд, US-27): дробовий рахунок мовчки проходив як ціле число.**
+- *Як знайшли:* інтеграційний тест відправив `{"team1Score": 13.5}`, очікував 400, але отримав **200**, а в базу записалося `13`.
+- *Причина:* Jackson за замовчуванням має ввімкнену опцію `ACCEPT_FLOAT_AS_INT`, тому обрізає `13.5` до `13` ще до того, як спрацює Bean Validation.
+- *Фікс:* додали `spring.jackson.deserialization.accept-float-as-int: false` у `core/src/main/resources/application.yml`. Це захищає всі числові поля в API. Тест не чіпали.
 
-**Bug 2 (frontend quality gate): `npm run lint` was red on `main`.**
-- *Found by:* running the quality gate during the read-only frontend review. The error was `react-hooks/set-state-in-effect` in `MatchRoomModal.tsx:95`: the initial room load set state synchronously inside the effect, which can cause cascading renders.
-- *Fix:* fetching (`fetchRoomBundle`) is separated from applying state, the effect sets state only after `await` and is guarded by a `cancelled` flag, and `isLoading` starts as `true`. The same pattern is used in all new effects (`App`, dispute card, dispute list).
-- *Side improvement:* a failed background poll no longer replaces a loaded room with the error screen. This is covered by a test.
+**Баг 2 (фронтенд, quality gate): `npm run lint` падав ще на `main`.**
+- *Як знайшли:* запустили лінтер під час аудиту коду. Він лаявся на правило `react-hooks/set-state-in-effect` у `MatchRoomModal.tsx:95` (стан змінювався синхронно прямо в `useEffect`).
+- *Фікс:* винесли завантаження у `fetchRoomBundle`, а оновлення стану перенесли після `await` з прапорцем `cancelled` та початковим `isLoading = true`. Заодно зробили так, щоб невдале фонове оновлення не затирало вже відкриту кімнату матчу екраном помилки.
 
-**Bug 3 (frontend, US-05 checklist 2): the invite was lost after login.**
-- *Found by:* the AI review of the UI against the Gherkin checklist.
-- *Symptom:* a guest who opened `/join/{token}` and logged in landed on `/` with no way back to the invite. Steam and magic-link logins both redirect to `/`, and the magic link opens in a new tab.
-- *Fix:* the token is saved in `localStorage` with a 30-minute TTL right before the login modal opens (`utils/pendingInvite.ts`), and the invite reopens on load. Every storage access is in try/catch, so private mode degrades gracefully.
+**Баг 3 (фронтенд, US-05): після входу втрачався інвайт у команду.**
+- *Як знайшли:* під час звірки інтерфейсу з критеріями приймання.
+- *Симптом:* якщо гість переходив по `/join/{token}` і натискав увійти, то після логіну його кидало на головну `/` без жодної згадки про інвайт.
+- *Фікс:* токен зберігається в `localStorage` на 30 хвилин перед відкриттям вікна логіну (`utils/pendingInvite.ts`), а після завантаження головної модалка інвайту відкривається сама. Усі звернення до сховища обгорнуті в `try/catch`, щоб нічого не падало в приватному режимі.
 
-**Bug 4 (frontend, US-11): the public tournament link did not work.**
-- *Symptom:* the drawer copied `/tournaments/{id}`, but the app only parsed `/join/...`, so opening a shared link showed the catalog with nothing selected.
-- *Fix:* `utils/route.ts` parses the path, `App` opens the drawer on load and on `popstate` (anonymous users included), shows "Турнір не знайдено" on 404, and pushes or restores the URL when the drawer opens or closes. nginx already has the SPA fallback.
+**Баг 4 (фронтенд, US-11): не працювало пряме посилання на турнір `/tournaments/{id}`.**
+- *Симптом:* кнопка копіювання формувала URL `/tournaments/{id}`, але роутинг у додатку розумів тільки `/join/...`, тому при відкритті лінку користувач просто бачив загальний каталог.
+- *Фікс:* `utils/route.ts` навчили розбирати шлях, `App` відкриває панель потрібного турніру на старті (навіть для гостя) і реагує на `popstate`, а на 404 показує "Турнір не знайдено".
 
-**Bug 5 (frontend, found by our own new test): the reason a file was rejected disappeared.**
-- *Symptom:* in the new `OpenDisputeDialog`, choosing a PDF showed "Допустимі формати…", but pressing "Відкрити спір" replaced it with "Додайте скріншот…". This violated US-30 sc.3.
-- *Found by:* `OpenDisputeDialog.test.tsx` (sc.3 and the size test were red on the first run).
-- *Fix:* the rejection reason is kept in state. The component was fixed; the test was not changed.
+**Баг 5 (фронтенд): після натискання кнопки зникала причина відмови файлу.**
+- *Як знайшли:* впав наш новий тест `OpenDisputeDialog.test.tsx`.
+- *Симптом:* якщо обрати PDF, з'являлося повідомлення "Допустимі формати...", але при кліку на "Відкрити спір" воно перетиралося текстом "Додайте скріншот...".
+- *Фікс:* причину відхилення файлу зберегли окремо у стані компонента.
 
-**Bug 6 (backend, error contract): a discipline mismatch returned `422 VALIDATION_FAILED`.**
-- *Found by:* the read-only QA audit (prompt 6.3).
-- *Details:* `error-format.md` §3.6 defines `VALIDATION_FAILED` as **400**. Our own first US-12 test had **locked in the wrong pair**, because its expected status was taken from the implementation instead of the contract (see reflection item 8).
-- *Fix:* `RegistrationDisciplineMismatchException` now returns 400. The test was rewritten from the contract and confirmed red on the old code.
+**Баг 6 (бекенд, контракт помилок): невідповідність дисципліни повертала 422 замість 400.**
+- *Як знайшли:* незалежний QA-аудит (промпт 6.3).
+- *Деталі:* у `error-format.md` код `VALIDATION_FAILED` має статус **400**, а наш перший тест взяв 422 прямо з коду винятку і закріпив помилку.
+- *Фікс:* `RegistrationDisciplineMismatchException` тепер повертає 400, а тест переписали за контрактом.
 
-**Bug 7 (backend, US-08 sc.2): Chess.com tournaments were created with a "map pool".**
-- *Found by:* the QA audit.
-- *Symptom:* `Discipline.CHESS` carried `Blitz 3+2 / Rapid 10+0`, which was stored as the tournament's map pool. US-08 says no map pool applies to Chess.com, and the contracts define none.
-- *Why it went unnoticed:* our frontend guard (Bug 8 below) hid it from the UI.
-- *Fix:* the chess pool is now empty. A new `TournamentMapPoolIntegrationTest` was confirmed red on the old code. Chess matches already skipped the ban phase, so nothing else depended on the pool.
+**Баг 7 (бекенд, US-08): для шахів у БД зберігався зайвий "пул карт".**
+- *Як знайшли:* під час QA-аудиту. `Discipline.CHESS` мала рядок `Blitz 3+2 / Rapid 10+0` у таблиці пулу карт, хоча за вимогами US-08 у шахах пулу карт немає. Фронтенд раніше це просто ховав.
+- *Фікс:* очистили маппул для шахів і додали тест `TournamentMapPoolIntegrationTest`, який на старому коді падав.
 
-**Smaller fixes:**
-- **Bug 8, US-08 UI guard:** a chess tournament displayed the backend's time-control list as a map pool. The guard is kept for legacy data created before Bug 7 was fixed.
-- **Deployment:** nginx's 1 MB default body limit would have rejected dispute screenshots between 1 and 10 MB. Added `client_max_body_size 13m`, and the client maps `HTTP_413` to a clear message.
-- **Race condition:** two quick clicks on tournaments could show the first tournament. Only the latest request now fills the drawer.
+**Баг 9 (фронтенд, чекліст #1): на екрані 375 px ламалася шапка сайту.**
+- *Як знайшли:* при перевірці `http://localhost:3000` у браузері з шириною 375 px.
+- *Симптом:* кнопка "Створити турнір" вилазила за правий край (до 440 px) і обрізалася до `+ С`. Після першого стиснення іконка "Мої команди" почала наїжджати на останню літеру логотипу "TOURNADO".
+- *Фікс:* у `frontend/src/App.tsx` зменшили відступи для мобільної версії, прибрали підзаголовок під логотипом на вузьких екранах і скоротили текст кнопки на `<640px` до "Створити". Повторно перевірили у браузері при 375x812: усе влазить у 357 px, між логотипом і кнопками є 27 px зазору.
 
-### Known issues, not fixed in this iteration
+**Баг 10 (фронтенд, US-05 / чекліст #3): вікно входу відкривалося за модальним вікном інвайту.**
+- *Як знайшли:* під час проходу гостьового інвайту `/join/inv_...` у живому браузері.
+- *Симптом:* при кліку на "Увійти для підтвердження вступу" модалка `AuthModal` ("Вхід до Tournado") відкривалася позаду `JoinInviteModal`, бо обидві мали `z-50`, а `AuthModal` стояв у DOM раніше. Поля вводу й кнопка "Отримати Magic Link" фізично не натискалися (`ELEMENT_OCCLUDED`).
+- *Фікс:* підняли `z-[70]` в `frontend/src/components/AuthModal.tsx`, перенесли `<AuthModal />` у кінець розмітки `frontend/src/App.tsx` і додали регресійний тест в `frontend/src/App.test.tsx`. Повторний живий клік у браузері пройшов без проблем, `/api/v1/auth/email/request-link` відповів 200 OK.
 
-| Finding | Why it is deferred |
+**Менші правки:**
+- **Баг 8 (фронтенд-страховка для US-08):** залишили захист в UI, щоб старі шахові турніри, створені до фіксу Багу 7, теж не показували пул карт.
+- **Nginx 1 MB ліміт:** стандартний ліміт nginx різав би скріншоти спорів розміром від 1 до 10 МБ. Прописали `client_max_body_size 13m`, а клієнт показує нормальне повідомлення на 413.
+- **Race condition при швидких кліках:** якщо швидко натиснути на два турніри підряд, міг відкритися перший. Тепер рендериться тільки відповідь останнього запиту.
+- **Сумісність тестів з Node v25 (`frontend/src/test/setup.ts`):** під Node v25.6.0 на Windows падали 7 фронтенд-тестів з `TypeError: window.localStorage.clear is not function`, бо новий Node сам підкладав неповний `localStorage`. Додали поліфіл для `Storage.prototype` і `localStorage` у `setup.ts` зі збереженням підтримки `vi.spyOn`.
+
+### Що відомо, але відкладено за межі цієї ітерації
+
+| Проблема | Чому не чіпали зараз |
 | :--- | :--- |
-| `GET /matches/{id}/room` has no access check: any logged-in user can read the room state. Only credentials are protected. Contract §6.1 says participants and organizer only. | Backend (Match Flow) change; reported to the owner. |
-| The Match Room API does not tell a captain whether they already submitted a score (B1). After a reload the form reappears, and a second submit is handled as "already submitted". | The team chose the frontend fallback; the API change is planned later. |
-| The last free slot can be over-booked by two captains at the same instant (count-then-insert in `RegistrationService`). | Needs a lock or constraint; listed in the strategy's risk table. |
-| `cs2ServerConnect` is public in `GET /tournaments/{id}`. | Contract change is needed (US-26). |
-| Bracket, check-in and standings UI (US-16, US-21, US-35). | The backend is on the unmerged branch `feat/bracket-engine`. |
-| US-30 says "JPG and PNG", while the contracts and code also accept WEBP. | The code follows the contract; this is documentation drift. The requirement should be updated. |
-| "Slots full" and "deadline passed" share `REGISTRATION_CLOSED`, so the UI cannot say "немає вільних місць" precisely. | The contract allows it; a dedicated code is a possible improvement. |
-| A roster may stay locked after its tournament is completed (`TournamentRosterLockCheckerImpl` ignores the tournament status). | A question for the Core Platform owner. |
-| Not covered yet: frontend test for the US-12 sc.4 disabled button, US-11 sc.1 copy-to-clipboard, and a concurrency test for the last slot. | Out of scope for this iteration. |
+| `GET /matches/{id}/room` не перевіряє доступ: будь-який залогінений користувач може подивитися стан кімнати (креди матчу закриті, але контракт §6.1 обмежує доступ учасниками та організатором). | Потрібна зміна в бекенд-модулі Match Flow, передали власнику модуля. |
+| API кімнати матчу не підказує капітану, чи він уже відправив рахунок: після оновлення сторінки форма з'являється знову, а повторна відправка впирається в 409. | Домовилися поки тримати фронтенд-обробку 409, розширення DTO буде пізніше. |
+| Останній вільний слот можуть одночасно зайняти два капітани (перевірка кількості й вставка в `RegistrationService` не атомарні). | Потрібне блокування на рівні БД; занесено в ризики стратегії. |
+| `cs2ServerConnect` повертається у публічному `GET /tournaments/{id}`. | Потрібне уточнення контракту під US-26. |
+| Візуальна сітка, чек-ін і таблиця стендінгів в UI (US-16, US-21, US-35). | Бекенд уже вмерджено з `feat/bracket-engine`, сам інтерфейс сітки та стендінгів залишено для наступного фронтенд-блоку. |
+| В US-30 написано тільки "JPG і PNG", а контракт і код приймають ще й WEBP. | Код відповідає технічному контракту, треба підправити текст вимоги. |
+| "Місць немає" і "Дедлайн минув" віддають один код `REGISTRATION_CLOSED`, тому UI не може уточнити причину саме про місця. | За контрактом це допустимо, але окремий код зробив би підказку точнішою. |
+| Ростер може залишатися заблокованим після завершення турніру (`TournamentRosterLockCheckerImpl` не дивиться на статус турніру). | Питання до власника Core Platform. |
+| Поки не покрито тестами: неактивна кнопка в US-12 сц. 4, копіювання лінку в буфер (US-11 сц. 1), конкурентний запит на останній слот. | Поза обсягом поточної ітерації. |
 
-## 4. Engineering reflection: where the AI was wrong or tried to cut corners
+## 4. Рефлексія: де ШІ помилявся або хитрив
 
-1. **It invented history in the deliverables.**
-   - *What happened:* when drafting the prompt files, the AI wrote "the AI first proposed H2, we rejected it" and "each `/generate-tests` run printed a table for approval". Neither happened in this session.
-   - *Fix:* we caught it on review and rewrote both sections to match the transcript. *Lesson:* reflection sections written by an AI must be checked against what actually happened.
-2. **It broke the project's test style rules.** The first US-12 happy-path test compared the response field by field (`extracting("teamId", ...)`), which CLAUDE.md §6 forbids. It was replaced with a recursive comparison against an expected DTO.
-3. **It made a lifecycle mistake that would have caused flaky tests.**
-   - *What happened:* the first `IntegrationTestBase` used `@Testcontainers` + `@Container` on a static field of an abstract class. JUnit would stop the container after the first test class, while Spring's cached context kept the old JDBC URL.
-   - *Fix:* replaced with a JVM-wide singleton container.
-4. **It retried instead of diagnosing.**
-   - *What happened:* when Docker Desktop crashed, the agent's first move was to restart it in a wait loop.
-   - *Fix:* the developer stopped it and asked for an analysis. The real causes were stale AF_UNIX socket files and a C: drive with about 3 GB free.
-5. **One test assertion was weak.**
-   - *What happened:* a test looked for the text `13:9` anywhere in the dispute card. It would have passed even if the AI-hint block were empty, because the captains' scores also contain `13:9`.
-   - *Fix:* the assertion is now scoped with `within()` to the «Підказка ШІ» block.
-6. **It changed existing tests, so we reviewed the change.**
-   - *What happened:* adding the organizer check to the drawer made one extra API call, which consumed one response from the `mockResolvedValueOnce` sequences in two existing tests.
-   - *Review:* only the mock setup was extended (one extra response, plus a mocked dispute list). No assertion was weakened, and we confirmed this in `git diff`.
-7. **Mocking boundaries.** No backend integration test mocks anything. The frontend tests mock only the `src/api/*` functions, never the component or validator under test, and every assertion checks rendered text, the enabled state of controls, or the exact arguments sent to the API.
-8. **It took the expected value from the code, which is the exact trap the theory warns about.**
-   - *What happened:* for the US-12 "wrong discipline" checklist item, the AI read the expected status from the exception class (`422 VALIDATION_FAILED`) instead of `error-format.md` (400). The test passed and locked in a contract violation.
-   - *Fix:* the independent read-only QA agent caught it. The code was fixed and the test re-derived from the contract.
-   - *Lesson:* expected status and code values must come from `docs/contracts`, never from `grep` over the implementation.
-9. **Mutation testing fooled by the build cache.**
-   - *What happened:* after a mutation round, the restored source files kept their older timestamps. Maven's incremental compiler kept the mutated `.class` files, so the next run looked as if the fixes had disappeared.
-   - *Fix:* a `./mvnw clean test` restored the truth.
-   - *Lesson:* after mutation checks, run a clean build, or restore files with `git checkout`, which updates the timestamps.
-10. **A naive "not exposed" assertion.**
-    - *What happened:* the first US-27 checklist 5 test asserted that the room JSON "does not contain `13`". It failed on UUIDs and timestamps that contain those digits, and it could just as easily have passed for the wrong reason.
-    - *Fix:* it now walks the JSON tree and asserts that no field name mentions a score or a submission.
-11. **A self-testing frontend assertion.**
-    - *What happened:* the US-34 component tests asserted the winner that the mocked API had returned.
-    - *Fix:* the winner rule is now tested where it lives, in the backend integration test. The component tests claim only what they check: the request that is sent and the ruling that is displayed.
+1. **Вигадував неіснуючі події у звітах.** Коли ШІ писав чернетки файлів `prompts/`, він придумав, ніби ми "спершу відкинули H2" і що кожен запуск виводив спеціальну таблицю на підтвердження. На перевірці це зловили й переписали чітко по реальному ходу роботи.
+2. **Порушував правила стилю тестів.** У першому happy-path тесті для US-12 модель почала звіряти поля відповіді по одному (`extracting(...)`), хоча наші правила це забороняють. Переробили на повне рекурсивне порівняння DTO.
+3. **Помилка з життєвим циклом Testcontainers.** Спочатку `IntegrationTestBase` мав `@Testcontainers` і `@Container` на абстрактному класі. JUnit зупиняв би контейнер після першого класу тестів, а кешований контекст Spring тримав би старий JDBC URL. Замінили на єдиний singleton-контейнер на весь JVM-процес.
+4. **Перезапускав Docker замість пошуку причини.** Коли Docker Desktop упав, агент почав циклічно пробувати його рестартувати. Розробник зупинив це й попросив знайти першопричину: виявилися биті сокети AF_UNIX і лише ~3 ГБ вільного місця на диску C.
+5. **Надто слабка перевірка в картці спору.** Тест просто шукав рядок `13:9` будь-де на сторінці спору. Він би проходив навіть при порожньому блоці підказки ШІ, бо `13:9` уже є в рахунках капітанів. Зараз перевірка жорстко обмежена через `within()` всередині блоку "Підказка ШІ".
+6. **Зміна існуючих тестів при додаванні фічі.** Коли додали запит на перевірку прав організатора в панелі турніру, це з'їло один мок з `mockResolvedValueOnce` у двох старих тестах. Довелося вручну переглядати `git diff`, щоб переконатися, що додали лише налаштування нового моку, а жоден `expect` не послабили.
+7. **Де проходять межі моків.** У бекенд-інтеграції взагалі немає моків. На фронтенді підміняємо тільки мережевий шар `src/api/*`, але ніколи не чіпаємо самі компоненти чи валідатори, і завжди перевіряємо реальний текст у DOM, стан кнопок і параметри виклику API.
+8. **Класична пастка: підглянув очікуваний статус не в контракт, а в код.** У тесті на неправильну дисципліну (US-12) ШІ взяв статус `422` прямо з класу винятку, хоча в `error-format.md` написано `400`. Тест став зеленим і зацементував баг. Виручив окремий QA-агент: код виправили, а тест переписали від контракту.
+9. **Кеш збірки збивав з пантелику під час мутаційного тестування.** Коли ми ламали файл і потім повертали стару копію, час модифікації файлу не оновлювався, і інкрементальний компілятор Maven залишав зібраним зламаний `.class`. Після переходу на `./mvnw clean test` усе встало на місця.
+10. **Наївна перевірка "значення не світиться".** Перший тест US-27 перевіряв, що у JSON кімнати просто немає тексту `13`. Він падав через цифри `13` у випадкових UUID чи датах. Зараз тест обходить дерево JSON і перевіряє саме назви полів.
+11. **Самообманний фронтенд-тест.** У тестах US-34 фронтенд перевіряв визначення переможця, хоча сам перед цим підклав мок з відповіддю. Правило переможця винесли туди, де воно живе (в інтеграційний тест бекенду), а на фронтенді тестуємо тільки те, що відправляє й малює UI.
 
+## 5. Незалежний QA-аудит (промпт 6.3)
 
-## 5. QA audit (prompt 6.3)
-
-The read-only `qa-auditor` agent (`.claude/agents/qa-auditor.md`) audited all new tests against the Gherkin scenarios. The full table and our verdicts are in [`prompts/6.3_qa_audit_and_debugging.md`](../prompts/6.3_qa_audit_and_debugging.md) §3. In short:
-
-- **2 real product bugs** (Bugs 6 and 7) were confirmed against the contract and requirement, fixed in code, and covered by tests that are red on the old code.
-- **1 documentation drift** (WEBP), **1 by-design limitation** (`REGISTRATION_CLOSED` for full slots), and **1 open question** (roster lock after completion) are recorded above.
-- **Test-quality fixes:**
-  - the self-testing US-34 UI assertions were replaced by 7 backend dispute-resolution tests;
-  - combined scenarios were split into separate tests;
-  - the mislabelled 403 test now uses a real non-captain teammate;
-  - 401 and 404 tests were added;
-  - field-by-field row checks were replaced with whole-row comparisons;
-  - US-05 sc.2 and the US-32 screenshot tests were added, and untagged tests were retagged;
-  - strategy §4 was made consistent with its own examples.
-- Confirmed by the audit: DB isolation (TRUNCATE before each test), no sleeps, no static state, and fake timers restored after use.
+Окремий read-only агент `qa-auditor` звірив усі нові тести зі сценаріями Gherkin. Детальна таблиця лежить у [`prompts/6.3_qa_audit_and_debugging.md`](../prompts/6.3_qa_audit_and_debugging.md) §3. Підсумок:
+- Знайшли 2 реальні продуктові баги (Баги 6 і 7), обидва виправили в коді та підтвердили тестами, які падали на старій версії.
+- Зафіксували 1 розбіжність у тексті вимог (WEBP), 1 обмеження за дизайном (`REGISTRATION_CLOSED` для повних слотів) і 1 відкрите питання (розблокування ростеру після фінішу турніру).
+- Почистили самі тести: замінили самоперевірочні UI-тести US-34 на 7 інтеграційних тестів на бекенді, розділили зліплені сценарії, поправили тест 403 на реального некапітана, додали перевірки 401 і 404, замінили перевірки по окремих полях на порівняння цілих об'єктів.
+- Аудит підтвердив повну ізоляцію БД (`TRUNCATE` перед тестом), відсутність `sleep` у тестах і чисте відновлення таймерів після фейкового часу.
